@@ -108,20 +108,20 @@ function startAP(){
         window.startGame(window.size);
 
         // Add the event listener and keep a reference to the handler
-        const beforeUnloadHandler = function (e) {
+        window.beforeUnloadHandler = function (e) {
             const confirmationMessage = "Are you sure you want to leave this page?";
             e.preventDefault();
             e.returnValue = confirmationMessage;
             return confirmationMessage;
         };
-        window.addEventListener("beforeunload", beforeUnloadHandler);
+        window.addEventListener("beforeunload", window.beforeUnloadHandler);
     };
 
     const disconnectedListener = (packet) => {
         window.is_connected = false;
         apstatus = "AP: Disconnected. Progress saved, please refresh.";
         alert("Disconnected from the server. Please refresh.");
-        window.removeEventListener("beforeunload", beforeUnloadHandler);
+        window.removeEventListener("beforeunload", window.beforeUnloadHandler);
     };
 
     var highScore = 0
@@ -143,7 +143,7 @@ function startAP(){
     }
     function sendGoal(){
         client.goal();
-        window.removeEventListener("beforeunload", beforeUnloadHandler);
+        window.removeEventListener("beforeunload", window.beforeUnloadHandler);
     }
 
     window.sendCheck = sendCheck;

@@ -882,7 +882,7 @@ class Cube {
     if(!this.lockedColors){
       for (let i = 0; i < this.edges.length; i++) {
         sideCount[this.edges[i].name.charAt(0)] = (sideCount[this.edges[i].name.charAt(0)] || 0) + 1;
-        this.edges[i].name = this.edges[i].name + 'X' + '-' + sideCount[this.edges[i].name.charAt(0)];
+        this.edges[i].name = this.edges[i].name + 'X' + 'X' + '-' + sideCount[this.edges[i].name.charAt(0)];
       }
       this.lockedColors = true;
     }
@@ -904,6 +904,38 @@ class Cube {
         edge.material.transparent = true;
         edge.material.opacity = 1;
       }
+
+      // Remove previous border if exists
+      if (edge.userData && edge.userData.border) {
+        edge.remove(edge.userData.border);
+        edge.userData.border.geometry.dispose();
+        edge.userData.border.material.dispose();
+        edge.userData.border = null;
+      }
+
+      // up next, if charAt(2) is not X, add a border and make it color edge.name.charAt(2)
+      if (edge.name.charAt(2) !== 'X') {
+        // Add a border to the edge with color colors[edge.name.charAt(2)]
+        // We'll use MeshBasicMaterial for the border and overlay a slightly larger plane
+
+        // Add colored border mesh (outline)
+        const outlineMaterial = new THREE.MeshBasicMaterial({
+          color: colors[edge.name.charAt(2)],
+          side: THREE.BackSide,
+          transparent: true,
+          opacity: 1,
+        });
+        const outlineMesh = new THREE.Mesh(edge.geometry.clone(), outlineMaterial);
+        outlineMesh.scale.multiplyScalar(1.10); // Increased for thicker border
+        outlineMesh.position.set(0, 0, 0); // Centered on edge
+        outlineMesh.rotation.set(0, 0, 0); // No extra rotation
+        outlineMesh.renderOrder = 1; // Ensure border renders above
+
+        edge.add(outlineMesh);
+        edge.userData.border = outlineMesh;
+      }
+
+
     });
 
   }
@@ -1580,13 +1612,17 @@ class Controls {
 
         if ( ! scramble ) this.onMove();
 
-        const layer = this.flipLayer.slice( 0 );
+        if(this.flipLayer){
+          const layer = this.flipLayer.slice( 0 );
 
-        this.game.cube.object.rotation.setFromVector3( this.snapRotation( this.game.cube.object.rotation.toVector3() ) );
-        this.group.rotation.setFromVector3( this.snapRotation( this.group.rotation.toVector3() ) );
-        this.deselectLayer( this.flipLayer );
+          if(layer){
+            this.game.cube.object.rotation.setFromVector3( this.snapRotation( this.game.cube.object.rotation.toVector3() ) );
+            this.group.rotation.setFromVector3( this.snapRotation( this.group.rotation.toVector3() ) );
+            this.deselectLayer( this.flipLayer );
 
-        callback( layer );
+            callback( layer );
+          }
+        }
 
       },
     } );
@@ -4243,9 +4279,9 @@ function unlockSticker(sticker){
     if (sides[side].length === 0) continue;
     for (let j = 0; j < sides[side].length; j++) {
       const sticker = sides[side][j];
-      if (sticker.name.charAt(0) === wantedSide && sticker.name.slice(3) === wantedNumber) {
+      if (sticker.name.charAt(0) === wantedSide && sticker.name.slice(4) === wantedNumber) {
         // Change this sticker to the most common color on this side
-        sticker.name = sticker.name.charAt(0) + 'O' + sticker.name.slice(2);
+        sticker.name = sticker.name.charAt(0) + 'O' + 'X' + sticker.name.slice(3);
         changed = true;
         break;
       }
@@ -4272,5 +4308,45 @@ function startGame(size) {
   console.log("Starting game!")
   window.doneScramble = false;
   window.game = new Game(size);
+
+  // Disable the standard right-click context menu on the whole document
+  document.addEventListener('contextmenu', function(event) {
+    event.preventDefault();
+  });
+
+  // Add an event listener for right-click (contextmenu) on the cube area
+  window.game.dom.game.addEventListener('contextmenu', function(event) {
+    event.preventDefault();
+    // Get mouse position
+    const clickEvent = event.touches
+      ? (event.touches[0] || event.changedTouches[0])
+      : event;
+    const clickPosition = new THREE.Vector2(clickEvent.pageX, clickEvent.pageY);
+
+    // Try to intersect with edges first (stickers)
+    let edgeIntersect = window.game.controls.getIntersect(clickPosition, window.game.cube.edges, true);
+    if (edgeIntersect !== false) {
+      // change the third letter of the name to F
+      const sides = ['X', 'F', 'R', 'B', 'L', 'U', 'D'];
+      const currentIndex = sides.indexOf(edgeIntersect.object.name.charAt(2));
+      const nextIndex = (currentIndex + 1) % sides.length;
+      edgeIntersect.object.name = edgeIntersect.object.name.slice(0, 2) + sides[nextIndex] + edgeIntersect.object.name.slice(3);
+      // call this.game.cube.updateColors(this.game.themes.getColors());
+      window.game.cube.updateColors(window.game.themes.getColors());
+      return;
+    }
+
+    // // If not a sticker, try to intersect with cube pieces
+    // let pieceIntersect = window.game.controls.getIntersect(clickPosition, window.game.cube.cubes, true);
+    // if (pieceIntersect !== false) {
+    //   console.log('Piece name:', pieceIntersect.object.name);
+    //   return;
+    // }
+
+    // If nothing found
+    console.log('No square found at this position.');
+  });
+
 }
 window.startGame = startGame;
+
