@@ -71,9 +71,7 @@ function startSolo(size = 2){
     window.is_connected = false;
 
 
-    function findAndDetermineChecks(counts){
-        console.log(counts);
-        
+    function findAndDetermineChecks(counts){        
         if(counts == stickersUnlocked){
             if(lockedStickers.length > 0){
                 let sticker = lockedStickers.shift();

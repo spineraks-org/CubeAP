@@ -73,6 +73,93 @@
 
 
 
+<!-- Simple pop-up modal -->
+<style>
+  .popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  .popup {
+    background: #111;
+    color: #fff;
+    padding: 20px;
+    max-width: 420px;
+    width: calc(100% - 40px);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    font-family: Arial, Helvetica, sans-serif;
+    text-align: left;
+    text-transform: none;
+  }
+  .popup h3 { margin: 0 0 8px 0; font-size: 1.25rem; text-transform: none;}
+  .popup p { margin: 0 0 12px 0; font-size: 0.95rem; line-height: 1.35; text-transform: none;}
+  .popup .actions { text-align: right; text-transform: none;}
+  .popup .btn {
+    background: #4a6bff;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    text-transform: none;
+  }
+  .popup .btn.secondary {
+    background: transparent;
+    color: #ddd;
+    margin-right: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+</style>
+
+
+
+
+<div class="popup-overlay" id="simple-popup" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+  <div class="popup" role="document">
+    <h3 id="popup-title">Welcome to Twisty Cube / Cube AP!</h3>
+    <p>Try the solo modes or connect to an Archipelago server.</p>
+    <p>You can control with mouse/touch or keyboard shortcuts (F/B/L/R/U/D (+SHIFT))</p>
+    <p style="color: #ff0;">NEW! Press backspace or the arrow bottom-left to undo your last move. Thank you BaNyaaNyaa for adding this!</p>
+    <p>More info and questions in the Archipelago discord server.</p>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const overlay = document.getElementById('simple-popup');
+    const closeBtn = document.getElementById('popup-close');
+    const gotItBtn = document.getElementById('popup-gotit');
+
+    function showPopup() {
+      if(localStorage.getItem('popup-shown') === 'true') return;
+      overlay.style.display = 'flex';
+      // focus for accessibility
+    }
+    function hidePopup() {
+      overlay.style.display = 'none';
+      // never show the popup again
+      localStorage.setItem('popup-shown', 'true');
+    }
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) hidePopup();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') hidePopup();
+    });
+
+    // Auto-show after a short delay on first load
+    window.addEventListener('load', () => setTimeout(showPopup, 500));
+  })();
+</script>
+
+
 
 
 

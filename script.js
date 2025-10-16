@@ -1331,6 +1331,23 @@ class Controls {
   }
 
   //AP
+  undo_action(){
+    const lastMove = this.game.moveStack.pop();
+    if (!lastMove) {
+      return;
+    }
+    this.state = ANIMATING;
+    const moveToApply = lastMove.inverse();
+    this.flipAxis = moveToApply.axis;
+    this.selectLayer(moveToApply.layer);
+    this.rotateLayer(moveToApply.angle, false, () => {
+      // Do NOT add the move to the move stack - we're undoing it!
+      this.game.storage.saveGame();
+      this.state = STILL;
+      this.checkIsSolved();
+    });
+  }
+  
   addAdditionalKeyListener() {
     document.addEventListener('keydown', event => {
       if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
@@ -1372,20 +1389,7 @@ class Controls {
       }
 
       if (event.key === 'Backspace') {
-        const lastMove = this.game.moveStack.pop();
-        if (!lastMove) {
-          return;
-        }
-        this.state = ANIMATING;
-        const moveToApply = lastMove.inverse();
-        this.flipAxis = moveToApply.axis;
-        this.selectLayer(moveToApply.layer);
-        this.rotateLayer(moveToApply.angle, false, () => {
-          // Do NOT add the move to the move stack - we're undoing it!
-          this.game.storage.saveGame();
-          this.state = STILL;
-          this.checkIsSolved();
-        });
+        this.undo_action();
       }
 
       // Arrow keys: rotate the cube as a whole
@@ -4076,21 +4080,25 @@ class Game {
 
     this.dom.buttons.back.onclick = event => {
 
-      if ( this.transition.activeTransitions > 0 ) return;
+      this.controls.undo_action();
 
-      if ( this.state === STATE.Playing ) {
 
-        this.game( HIDE );
 
-      } else if ( this.state === STATE.Prefs ) {
+      // if ( this.transition.activeTransitions > 0 ) return;
 
-        this.prefs( HIDE );
+      // if ( this.state === STATE.Playing ) {
 
-      } else if ( this.state === STATE.Theme ) {
+      //   this.game( HIDE );
 
-        this.theme( HIDE );
+      // } else if ( this.state === STATE.Prefs ) {
 
-      }
+      //   this.prefs( HIDE );
+
+      // } else if ( this.state === STATE.Theme ) {
+
+      //   this.theme( HIDE );
+
+      // }
 
     };
 
