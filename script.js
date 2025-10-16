@@ -1344,6 +1344,7 @@ class Controls {
         if (!lastMove) {
           return;
         }
+        this.state = ANIMATING;
         const moveToApply = lastMove.inverse();
         this.flipAxis = moveToApply.axis;
         this.selectLayer(moveToApply.layer);
