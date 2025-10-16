@@ -871,8 +871,6 @@ class Cube {
 
   }
 
-  
-
   updateColors( colors ) {
 
     if ( typeof this.pieces !== 'object' && typeof this.edges !== 'object' ) return;
@@ -1282,6 +1280,9 @@ const ANIMATING = 3;
 
 class Controls {
 
+  /**
+   * @param {Game} game
+   */
   constructor( game ) {
 
     this.game = game;
@@ -1362,7 +1363,25 @@ class Controls {
         // Select the layer
         this.selectLayer(layer);
         // Rotate the layer
-        this.rotateLayer(move.angle, false, () => {
+        this.rotateLayer(move.angle, false, rotatedLayer => {
+          this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
+          this.game.storage.saveGame();
+          this.state = STILL;
+          this.checkIsSolved();
+        });
+      }
+
+      if (event.key === 'Backspace') {
+        const lastMove = this.game.moveStack.pop();
+        if (!lastMove) {
+          return;
+        }
+        this.state = ANIMATING;
+        const moveToApply = lastMove.inverse();
+        this.flipAxis = moveToApply.axis;
+        this.selectLayer(moveToApply.layer);
+        this.rotateLayer(moveToApply.angle, false, () => {
+          // Do NOT add the move to the move stack - we're undoing it!
           this.game.storage.saveGame();
           this.state = STILL;
           this.checkIsSolved();
@@ -1564,8 +1583,13 @@ class Controls {
 
       if ( this.flipType === 'layer' ) {
 
-        this.rotateLayer( delta, false, layer => {
-
+        this.rotateLayer( delta, false, rotatedLayer => {
+          // If the angle is too small, it means no rotation was applied. We ignore it.
+          // 360 degrees rotation would still be possible, even if they don't do anything.
+          // This is probably preferable in terms of UX.
+          if (Math.abs(angle) > 1.5) {
+            this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), angle));
+          }
           this.game.storage.saveGame();
           
           this.state = this.gettingDrag ? PREPARING : STILL;
@@ -1590,7 +1614,12 @@ class Controls {
 
   }
 
-
+  /**
+   * @param {number} rotation - Target angle of rotation.
+   * This is used for the animation: this allows a layer to be in a partially turned position when its dragged with the mouse.
+   * @param {boolean} scramble - True if the cube is being scrambled.
+   * @param {onRotateCompleteCallback} callback - Callback to call once the animation is complete.
+   */
   rotateLayer( rotation, scramble, callback ) {
     const config = scramble ? 0 : this.flipConfig;
 
@@ -1608,8 +1637,12 @@ class Controls {
         bounce( tween.value, deltaAngle, rotation );
 
       },
+      /**
+       * @callback onRotateCompleteCallback
+       * @param {number[]} layer
+       * @returns {void}
+       */
       onComplete: () => {
-
         if ( ! scramble ) this.onMove();
 
         if(this.flipLayer){
@@ -3868,6 +3901,65 @@ const BUTTONS = {
 const SHOW = true;
 const HIDE = false;
 
+/**
+ * Represent a move on the cube
+ */
+class Move {
+  /**
+   * @param {number[]} layer - Index of all the cubes in the layer in rotation
+   * @param {THREE.Vector3} axis - Axis of rotation
+   * @param {number} angle - Angle of rotation.
+   */
+  constructor(layer, axis, angle) {
+    this.layer = layer;
+    this.axis = axis;
+    this.angle = angle;
+  }
+
+  /**
+   * Returns the move that inverses this move
+   * @returns Move
+   */
+  inverse() {
+    return new Move(this.layer.slice(), this.axis.clone(), -this.angle);
+  }
+}
+
+/**
+ * The stack containing all the moves that have occured.
+ */
+class MoveStack {
+  constructor() {
+    /**
+     * List of moves that have been made
+     * @type {Move[]}
+     */
+    this.moves = [];
+  }
+
+  /**
+   * Add a move to the list of moves
+   * @param {Move} move
+   */
+  push(move) {
+    this.moves.push(move);
+  }
+
+  /**
+   * Remove the last move and return it.
+   * @returns {Move}
+   */
+  pop() {
+    const lastMove = this.moves.pop();
+    if (!lastMove) {
+      return null;
+    }
+    return lastMove;
+  }
+}
+
+
+
 class Game {
 
   constructor(size) {
@@ -3901,6 +3993,7 @@ class Game {
     this.world = new World( this );
     this.cube = new Cube( this );
     this.controls = new Controls( this );
+    this.moveStack = new MoveStack();
     this.scrambler = new Scrambler( this );
     this.transition = new Transition( this );
     this.timer = new Timer( this );
