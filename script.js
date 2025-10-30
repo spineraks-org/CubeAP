@@ -892,7 +892,6 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      // 50% chance to set the color, otherwise set to gray
       if (edge.name.charAt(1) === 'O') {
         edge.material.color.setHex(colors[edge.name.charAt(0)]);
         edge.material.transparent = true;
@@ -1332,6 +1331,7 @@ class Controls {
 
   //AP
   undo_action(){
+    if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
     const lastMove = this.game.moveStack.pop();
     if (!lastMove) {
       return;
@@ -4080,7 +4080,7 @@ class Game {
 
     this.dom.buttons.back.onclick = event => {
 
-      this.controls.undo_action();
+      
 
 
 
@@ -4090,11 +4090,17 @@ class Game {
 
       //   this.game( HIDE );
 
-      // } else if ( this.state === STATE.Prefs ) {
+      // } else 
+      
+      if ( this.state === STATE.Prefs ) {
 
-      //   this.prefs( HIDE );
+        this.prefs( HIDE );
 
-      // } else if ( this.state === STATE.Theme ) {
+      } else{
+        this.controls.undo_action();
+      }
+       
+       //else if ( this.state === STATE.Theme ) {
 
       //   this.theme( HIDE );
 
