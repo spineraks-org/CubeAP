@@ -22,6 +22,23 @@ if(getUrlParameter('go') == 'solo'){
 
 function startSolo(size = 2){
     console.log("Starting solo game", size);
+    const sidePermutations = {
+        'U': 'U',
+        'D': 'D',
+        'L': 'L',
+        'R': 'R',
+        'F': 'F',
+        'B': 'B'
+    };
+
+    const layoutCheckbox = document.getElementsByName('randomize_layout').item(0);
+    if (layoutCheckbox.checked) {
+        const sideValues = Object.values(sidePermutations);
+        for (let key in sidePermutations) {
+            sidePermutations[key] = sideValues.splice(Math.floor(Math.random() * sideValues.length), 1)[0];
+        }
+    }
+
 
     // Add the event listener and keep a reference to the handler
     const beforeUnloadHandler = function (e) {
@@ -41,7 +58,7 @@ function startSolo(size = 2){
 
     function connectToServer(firsttime = true) {
         
-        window.startGame(parseInt(size));
+        window.startGame(parseInt(size), sidePermutations);
 
         const colors = ['L', 'R', 'U', 'D', 'F', 'B'];
         for(let i=1; i<=size*size; i++){
