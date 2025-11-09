@@ -15,6 +15,9 @@ document.getElementById("solobutton333").addEventListener("click", function() {
 document.getElementById("solobutton444").addEventListener("click", function() {
     startSolo(4);
 });
+document.getElementById("solobutton555").addEventListener("click", function() {
+    startSolo(4);
+});
 
 if(getUrlParameter('go') == 'solo'){
     startSolo();
