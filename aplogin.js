@@ -6,6 +6,16 @@ function getUrlParameter(name) {
     return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
 };
 
+// Map color letter to side
+const colorToSide = {
+    'White': 'U',
+    'Yellow': 'D',
+    'Red': 'F',
+    'Orange': 'B',
+    'Blue': 'R',
+    'Green': 'L'
+};
+
 // server stuff:
 import {
     Client
@@ -17,6 +27,42 @@ document.getElementById('loginbutton').addEventListener('click', function() {
 
 if(getUrlParameter('go') == 'LS'){
     startAP();
+}
+
+/**
+ * Extract the cube size from the slot data
+ *
+ * @param {Object} slotData
+ * @returns {number}
+ */
+function getCubeSize(slotData) {
+    return slotData.size_of_cube;
+}
+
+/**
+ * Extract the side permutations from the slot data
+ *
+ * @param {Object} slotData
+ * @returns {Object.<string, string>}
+ */
+function getSidePermutations(slotData) {
+    // If there's no version, it's 0.0.1. Permutation didn't exist
+    if (!('ap_world_version' in slotData)) {
+        return {
+            'U': 'U',
+            'D': 'D',
+            'L': 'L',
+            'R': 'R',
+            'F': 'F',
+            'B': 'B'
+        }
+    }
+
+    let sidePermutations = {};
+    for (const key in slotData.color_permutation) {
+        sidePermutations[colorToSide[key]] = colorToSide[slotData.color_permutation[key]]
+    }
+    return sidePermutations;
 }
 
 function startAP(){
@@ -80,20 +126,10 @@ function startAP(){
 
     function openItems(items) {
         for (let i = 0; i < items.length; i++) {
-            let firstIndex = items[i][2];
-            let indexItem = items[i][1];
             let item = items[i][0];
-            const color = item.charAt(0);
-            // Map color letter to side
-            const colorToSide = {
-                'W': 'U',
-                'Y': 'D',
-                'R': 'F',
-                'O': 'B',
-                'B': 'R',
-                'G': 'L'
-            };
-            const side = colorToSide[color] || color;
+            const color = item.split(' ', 2)[0];
+
+            const side = colorToSide[color];
 
             window.unlockSticker([side, item.split("#")[1]]);
         }
@@ -104,8 +140,9 @@ function startAP(){
         apstatus = "AP: Connected";
         console.log("Connected packet: ", packet);
 
-        window.size = packet.slot_data.size_of_cube;
-        window.startGame(window.size);
+        const size_of_cube = getCubeSize(packet.slot_data);
+        const sidePermutations = getSidePermutations(packet.slot_data);
+        window.startGame(size_of_cube, sidePermutations);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {
@@ -149,6 +186,6 @@ function startAP(){
     window.sendCheck = sendCheck;
     window.sendGoal = sendGoal;
 
-    console.log("0.0.1")
+    console.log("0.0.2")
     connectToServer();
 }

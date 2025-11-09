@@ -3974,9 +3974,9 @@ class Game {
 
 /**
  * @param {number} size Dimensions of the cube
- * @param {?Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  */
-  constructor(size, sidePermutation = null) {
+  constructor(size, sidePermutation) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4020,14 +4020,7 @@ class Game {
     /**
      * @type {Object.<string, string>}
      */
-    this.sidePermutation = sidePermutation ?? {
-      'U': 'U',
-      'D': 'D',
-      'L': 'L',
-      'R': 'R',
-      'F': 'F',
-      'B': 'B'
-    }
+    this.sidePermutation = sidePermutation;
 
     this.initActions();
 
@@ -4436,9 +4429,9 @@ function submitScore(counts){
  * Start a game
  *
  * @param {number} size Dimensions of the cube
- * @param {?Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  */
-function startGame(size, sidePermutation = null) {
+function startGame(size, sidePermutation) {
   console.log("Starting game!");
   window.doneScramble = false;
   window.game = new Game(size, sidePermutation);
