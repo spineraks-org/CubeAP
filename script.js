@@ -1326,6 +1326,7 @@ class Controls {
     this.initDraggable();
 
     this.addAdditionalKeyListener();
+    this.addDeathLinkListener();
 
   }
 
@@ -1347,45 +1348,90 @@ class Controls {
       this.checkIsSolved();
     });
   }
+
+  moveSide(eventKey){
+    this.state = ANIMATING;
+    const moveDescriptor = eventKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
+    const move = this.game.scrambler.convertMove(moveDescriptor);
+
+    // Get the layer to rotate
+    // Always get the layer corresponding to the global axis, not the local cube orientation
+    // Find the world position of the layer by transforming the intended position by the cube's rotation
+    // Use the inverse quaternion to transform the move position to global coordinates
+    const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
+    const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
+    // Clamp values to [-1, 1]
+    globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
+    globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
+    globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
+    // console.log(inverseQuaternion, globalPosition)
+    
+    const layer = this.getLayer(globalPosition);
+    
+    // Set the axis to rotate
+    this.flipAxis = new THREE.Vector3();
+    
+    this.flipAxis[move.axis] = 1;
+    this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
+    // Select the layer
+    this.selectLayer(layer);
+    // Rotate the layer
+    this.rotateLayer(move.angle, false, rotatedLayer => {
+      this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
+      this.game.storage.saveGame();
+      this.state = STILL;
+      this.checkIsSolved();
+    });
+  }
+
+  doDeathLink(source, cause) {
+    const amount_of_moves = document.getElementById('deathlink-scramble').value;
+
+    if(document.getElementById('show-deathlinks').checked){
+      const note = this.game.dom.texts.note;
+      // make display note for 10 seconds
+      if(cause){
+        note.innerText = cause +'';
+      }else{
+        note.innerText = source + ' died';
+      }
+      note.style.opacity = '1';
+      setTimeout(() => {
+        note.style.opacity = '0';
+        note.innerText = 'Double tap to start';
+      }, 3000 + amount_of_moves * 500);
+    }
+
+    for(let i = 0; i < amount_of_moves; i++){
+      setTimeout(() => {
+        if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
+        const faces = 'UDLRFB';
+        const move = faces[ Math.floor( Math.random() * faces.length ) ];
+        this.moveSide(move);
+      }, i * 500);
+    }
+
+
+  }
   
+  addDeathLinkListener() {
+    window.doDeathLink = this.doDeathLink.bind(this);
+  }
+
   addAdditionalKeyListener() {
     document.addEventListener('keydown', event => {
       if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
 
-      // Use this to rotate the layer when Q is pressed
-      if (['L', 'R', 'U', 'D', 'F', 'B'].includes(event.key.toUpperCase())) {
-        this.state = ANIMATING;
-        const moveDescriptor = event.key.toUpperCase() + (event.key === event.key.toUpperCase() ? "'" : "");
-        const move = this.game.scrambler.convertMove(moveDescriptor);
+      let eventKey = event.key;
 
-        // Get the layer to rotate
-        // Always get the layer corresponding to the global axis, not the local cube orientation
-        // Find the world position of the layer by transforming the intended position by the cube's rotation
-        // Use the inverse quaternion to transform the move position to global coordinates
-        const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
-        const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
-        // Clamp values to [-1, 1]
-        globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
-        globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
-        globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
-        // console.log(inverseQuaternion, globalPosition)
-        
-        const layer = this.getLayer(globalPosition);
-        
-        // Set the axis to rotate
-        this.flipAxis = new THREE.Vector3();
-        
-        this.flipAxis[move.axis] = 1;
-        this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
-        // Select the layer
-        this.selectLayer(layer);
-        // Rotate the layer
-        this.rotateLayer(move.angle, false, rotatedLayer => {
-          this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
-          this.game.storage.saveGame();
-          this.state = STILL;
-          this.checkIsSolved();
-        });
+      // // Use this to rotate the layer when Q is pressed
+      // if (['P'].includes(eventKey)) {
+      //   this.doDeathLink("Spineraks", "made too many games");
+      // }
+
+      // Use this to rotate the layer when Q is pressed
+      if (['L', 'R', 'U', 'D', 'F', 'B'].includes(eventKey.toUpperCase())) {
+        this.moveSide(eventKey);
       }
 
       if (event.key === 'Backspace') {
