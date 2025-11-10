@@ -88,10 +88,11 @@ function startAP(){
         client.items.on("itemsReceived", receiveditemsListener);
         client.socket.on("connected", connectedListener);
         client.socket.on("disconnected", disconnectedListener);
+        client.deathLink.on("deathReceived", deathListener);
         
         
         client
-        .login(hostport, name, "Twisty Cube", {password: password})
+        .login(hostport, name, "Twisty Cube", {password: password, tags: ["DeathLink"]})
             .then(() => {
                 console.log("Connected to the server");
             })
@@ -160,6 +161,11 @@ function startAP(){
         alert("Disconnected from the server. Please refresh.");
         window.removeEventListener("beforeunload", window.beforeUnloadHandler);
     };
+
+    function deathListener(source, time, cause){
+        console.log("Received death link from", source, "at time", time, "due to", cause);
+        window.doDeathLink(source, cause);
+    }
 
     var highScore = 0
     function findAndDetermineChecks(total){

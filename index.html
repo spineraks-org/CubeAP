@@ -38,16 +38,59 @@
         <input type="submit" value="Login & Connect" id="loginbutton" class="login-submit" style="font-size: 20px;">
         <label id="error-label" class="login-label" style="color: red;"></label>
       </div>
+      <!-- <hr style="border: 5px solid #555599; margin: 8px 0;"> -->
+
+        <span style="display:inline-flex; align-items:center; gap:8px; white-space:nowrap; font-family: Arial, Helvetica, sans-serif; text-transform: none;">
+          Archipelago Deathlink Setting: when someone deathlinks,
+        </span>
+        <span style="display:inline-flex; align-items:center; gap:8px; white-space:nowrap; font-family: Arial, Helvetica, sans-serif; text-transform: none;">
+          randomly scramble
+            <select id="deathlink-scramble" style="font-family: inherit; text-transform: none; margin: 0 4px;">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="100">100</option>
+            </select>
+            <script>
+            (function(){
+              const key = 'deathlink-scramble';
+              const el = document.getElementById('deathlink-scramble');
+              // Restore saved value (if any)
+              const saved = localStorage.getItem(key);
+              if (saved !== null) el.value = saved;
+              // Persist changes
+              el.addEventListener('change', () => localStorage.setItem(key, el.value));
+            })();
+            </script>
+          times.
+        </span>
+        <span style="display:inline-flex; align-items:center; gap:8px; white-space:nowrap; font-family: Arial, Helvetica, sans-serif; text-transform: none;">
+          <input type="checkbox" id="show-deathlinks" style="transform: scale(1.5);">
+          <script>
+            (function(){
+              const key = 'show-deathlinks';
+              const el = document.getElementById('show-deathlinks');
+              // Initialize from localStorage
+              el.checked = localStorage.getItem(key) === 'true';
+              // Persist changes
+              el.addEventListener('change', () => localStorage.setItem(key, el.checked ? 'true' : 'false'));
+            })();
+          </script>
+          <label for="show-deathlinks" style="cursor: pointer; text-transform: none;" > Show cause of deathlink on-screen</label>
+        </span>
+
       <hr style="border: 5px solid #555599; margin: 8px 0;">
       <div style="margin-top: 5px; font-size: 0.9em; color: white; padding: 10px; text-align: center; border-radius: 10px;">
         <div style="color: #fff; font-size: 30px; font-weight: bold; margin-bottom: 8px;">Try it out solo</div>
         <input type="checkbox" name="randomize_layout" value="randomize_layout">­
         <label for="randomize_layout">Randomize color layout</label>
         <div style="display: flex; gap: 10px;">
-          <input type="submit" value="2 x 2 x 2" id="solobutton222" class="login-submit" style="font-size: 16px;text-transform: none; padding: 10px;">
-          <input type="submit" value="3 x 3 x 3" id="solobutton333" class="login-submit" style="font-size: 16px;text-transform: none; padding: 10px;">
-          <input type="submit" value="4 x 4 x 4" id="solobutton444" class="login-submit" style="font-size: 16px;text-transform: none; padding: 10px;">
-          <input type="submit" value="5 x 5 x 5" id="solobutton555" class="login-submit" style="font-size: 16px;text-transform: none; padding: 10px;">
+          <input type="submit" value="2 x 2 x 2" id="solobutton222" class="login-submit" style="font-size: 16px;text-transform: none;">
+          <input type="submit" value="3 x 3 x 3" id="solobutton333" class="login-submit" style="font-size: 16px;text-transform: none;">
+          <input type="submit" value="4 x 4 x 4" id="solobutton444" class="login-submit" style="font-size: 16px;text-transform: none;">
+          <input type="submit" value="5 x 5 x 5" id="solobutton555" class="login-submit" style="font-size: 16px;text-transform: none;">
         </div>
       </div>
       <div style="margin-top: 5px; font-size: 0.9em; color: white; padding: 10px; text-align: center; border-radius: 10px;">
@@ -182,14 +225,14 @@
       <span id="cube-prefix"></span>
       <script>
         const prefixes = [
-            "ARCHIPELA-",
-            "AP",
-            "SPINERAKS'",
-            "The",
-            "Mighty",
-            "Amazing",
-            "Rando",
-            "Mystic",
+            // "ARCHIPELA-",
+            // "AP",
+            // "SPINERAKS'",
+            // "The",
+            // "Mighty",
+            // "Amazing",
+            // "Rando",
+            // "Mystic",
             "Twisty"
         ];
         document.getElementById("cube-prefix").textContent = prefixes[Math.floor(Math.random() * prefixes.length)];
@@ -197,14 +240,15 @@
       <span id="cube-name"></span>
       <script>
         const names = [
-            "Regular hexahedron",
-            "Cuboid",
-            "Voxel",
-            "Cubelet",
-            "Box",
-            "3D Square",
-            "Block",
-            "Puzzle"
+            "Cube"
+            // "Regular hexahedron",
+            // "Cuboid",
+            // "Voxel",
+            // "Cubelet",
+            // "Box",
+            // "3D Square",
+            // "Block",
+            // "Puzzle"
         ];
         document.getElementById("cube-name").textContent = names[Math.floor(Math.random() * names.length)];
       </script>
