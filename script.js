@@ -693,7 +693,6 @@ class Cube {
     this.animator.add( this.object );
 
     this.game.world.scene.add( this.holder );
-
   }
 
   init() {
@@ -727,7 +726,7 @@ class Cube {
 
     } );
 
-    this.updateColors( this.game.themes.getColors() );
+    this.updateColors( this.game.themes.getColors(), this.game.sidePermutation );
 
     this.sizeGenerated = this.size;
 
@@ -871,7 +870,12 @@ class Cube {
 
   }
 
-  updateColors( colors ) {
+  /**
+   *
+   * @param {Object.<string, number>} colors Colors to use for each side
+   * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors
+   */
+  updateColors( colors, sidePermutation ) {
 
     if ( typeof this.pieces !== 'object' && typeof this.edges !== 'object' ) return;
 
@@ -893,7 +897,8 @@ class Cube {
     
     this.edges.forEach( edge => {
       if (edge.name.charAt(1) === 'O') {
-        edge.material.color.setHex(colors[edge.name.charAt(0)]);
+        const colorCode = sidePermutation[edge.name.charAt(0)] || edge.name.charAt(0);
+        edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
         edge.material.opacity = 1;
       } else {
@@ -3548,6 +3553,7 @@ class Themes {
     };
 
     this.colors = JSON.parse( JSON.stringify( this.defaults ) );
+    console.log(this.colors);
 
   }
 
@@ -4012,7 +4018,11 @@ class MoveStack {
 
 class Game {
 
-  constructor(size) {
+/**
+ * @param {number} size Dimensions of the cube
+ * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ */
+  constructor(size, sidePermutation) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4053,6 +4063,10 @@ class Game {
     this.confetti = new Confetti( this );
     this.themes = new Themes( this );
     this.themeEditor = new ThemeEditor( this );
+    /**
+     * @type {Object.<string, string>}
+     */
+    this.sidePermutation = sidePermutation;
 
     this.initActions();
 
@@ -4445,7 +4459,7 @@ function unlockSticker(sticker){
     console.warn('Could not find sticker to change', sticker);
     return;
   }
-  this.game.cube.updateColors(this.game.themes.getColors());
+  this.game.cube.updateColors(this.game.themes.getColors(), this.game.sidePermutation);
   this.game.controls.checkIsSolved();
 }
 
@@ -4457,10 +4471,16 @@ function submitScore(counts){
   }
 }
 
-function startGame(size) {
-  console.log("Starting game!")
+/**
+ * Start a game
+ *
+ * @param {number} size Dimensions of the cube
+ * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ */
+function startGame(size, sidePermutation) {
+  console.log("Starting game!");
   window.doneScramble = false;
-  window.game = new Game(size);
+  window.game = new Game(size, sidePermutation);
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {
@@ -4485,7 +4505,7 @@ function startGame(size) {
       const nextIndex = (currentIndex + 1) % sides.length;
       edgeIntersect.object.name = edgeIntersect.object.name.slice(0, 2) + sides[nextIndex] + edgeIntersect.object.name.slice(3);
       // call this.game.cube.updateColors(this.game.themes.getColors());
-      window.game.cube.updateColors(window.game.themes.getColors());
+      window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
       return;
     }
 
