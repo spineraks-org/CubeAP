@@ -1,6 +1,10 @@
 {
   "name": "CubeAP",
   "packageManager": "yarn@4.11.0",
+  "scripts": {
+    "prettify": "prettier --tab-width=4 --print-width=120 --single-quote=true --write .",
+    "run-dev": "http-server -c-1 --port=8080 src"
+  },
   "devDependencies": {
     "http-server": "^14.1.1",
     "prettier": "^3.6.2"
