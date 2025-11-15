@@ -1,4 +1,8 @@
 {
   "name": "CubeAP",
-  "packageManager": "yarn@4.11.0"
+  "packageManager": "yarn@4.11.0",
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "prettier": "^3.6.2"
+  }
 }
