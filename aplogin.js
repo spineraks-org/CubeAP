@@ -67,7 +67,7 @@ function getSidePermutations(slotData) {
 
 function startAP(){
     document.getElementById("login-container").style.display = "none";
-    document.getElementById("ui").style.display = "block";
+    document.getElementById("loading-screen").style.display = "flex";
 
     localStorage.setItem("hostport", document.getElementById("hostport").value);
     localStorage.setItem("name", document.getElementById("name").value);
@@ -97,7 +97,25 @@ function startAP(){
                 console.log("Connected to the server");
             })
             .catch((error) => {
-                console.log("Failed to connect", error)
+                let errorMessages = ['Error while connecting to the server:\n'];
+                if (typeof error.errors === 'undefined') {
+                    errorMessages.push('Make sure that the server and the port are correct.')
+                }
+                else {
+                    for (const errorCode of error.errors) {
+                        switch (errorCode) {
+                            case 'InvalidSlot':
+                                errorMessages.push('This slot does not exist. Make sure that the player name is correct.')
+                                break
+                            case 'InvalidPassword':
+                                errorMessages.push('The password is not correct.')
+                                break;
+                        }
+                    }
+                }
+                alert(errorMessages.join('\n'));
+                document.getElementById("login-container").style.display = "flex";
+                document.getElementById("loading-screen").style.display = "none";
             });
 
     }
@@ -140,6 +158,8 @@ function startAP(){
         window.is_connected = true;
         apstatus = "AP: Connected";
         console.log("Connected packet: ", packet);
+        document.getElementById("loading-screen").style.display = "none";
+        document.getElementById("ui").style.display = "block";
 
         const size_of_cube = getCubeSize(packet.slot_data);
         const sidePermutations = getSidePermutations(packet.slot_data);

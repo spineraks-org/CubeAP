@@ -413,3 +413,28 @@ body {
     /* Adjust the margin as needed */
     color: #ffffff;
 }
+
+#loading-screen {
+  color:#ffffff;
+  width: 100%;
+  height: 100%;
+  flex-direction: row;
+  transition: background 500ms ease;
+  background-image: linear-gradient(to bottom, rgb(169, 169, 169) 50%, rgb(105, 105, 105) 100%);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { 
+  0% {
+    transform: rotate(0deg);
+  }
+  100% { 
+    transform:rotate(360deg); 
+  }
+}
