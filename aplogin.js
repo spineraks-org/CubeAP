@@ -187,14 +187,10 @@ function startAP(){
         window.doDeathLink(source, cause);
     }
 
-    var highScore = 0
     function findAndDetermineChecks(total){
-        console.log(highScore, total);
-        if(total <= highScore) return;
-        for (let i = highScore + 1; i <= total; i++) {
+        for (let i = window.highScore + 1; i <= total; i++) {
             sendCheck(267780000 + i);
         }
-        highScore = Math.max(highScore, total);
     }
     window.findAndDetermineChecks = findAndDetermineChecks;
 

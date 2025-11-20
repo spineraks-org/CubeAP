@@ -249,7 +249,7 @@ body {
 }
 .text--correctness2 {
   bottom: 84%;
-  font-size: 0.5em;
+  font-size: 0.75em;
   line-height: 1;
 }
 .text--complete, .text--best-time {

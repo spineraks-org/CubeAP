@@ -2045,8 +2045,9 @@ class Controls {
         score += maxSides.score;
       }
     }
-
-    this.game.dom.texts.correctness.textContent = `${score}/${maxPossible} correct`;
+    window.highScore = Math.max(window.highScore, score);
+    this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
+    this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
 
     if (isSolved) {
       this.onSolved();
@@ -2167,6 +2168,7 @@ class Transition {
     };
 
     this.activeTransitions = 0;
+    this.correctnessDisplayDone = 0;
 
   }
 
@@ -2182,6 +2184,8 @@ class Transition {
 
     this.tweens.buttons = {};
     this.tweens.timer = [];
+    this.tweens.correctness = [];
+    this.tweens.correctness2 = [];
     this.tweens.title = [];
     this.tweens.best = [];
     this.tweens.complete = [];
@@ -2576,13 +2580,41 @@ class Transition {
 
     timer.style.opacity = 1;
 
-    const correctness = this.game.dom.texts.correctness;
-    correctness.style.opacity = show ? 1 : 0;
-    const correctness2 = this.game.dom.texts.correctness2;
-    correctness2.style.opacity = show ? 1 : 0;
-
     setTimeout( () => this.activeTransitions--, this.durations.timer );
 
+  }
+
+  correctness(show, onAnimationDone = null) {
+    this.activeTransitions+=1;
+
+    const correctness = this.game.dom.texts.correctness;
+    const correctness2 = this.game.dom.texts.correctness2;
+
+    correctness.style.opacity = 0;
+    correctness2.style.opacity = 0;
+
+    this.splitLetters( correctness );
+    this.splitLetters( correctness2 );
+    const correctnessLetters = correctness.querySelectorAll( 'i' );
+    const correctness2Letters = correctness2.querySelectorAll( 'i' );
+    this.flipLetters( 'correctness', correctnessLetters, show );
+    this.flipLetters( 'correctness2', correctness2Letters, show );
+    correctness.style.opacity = 1;
+    correctness2.style.opacity = 1;
+    setTimeout( () => {
+      this.activeTransitions--;
+      this.correctnessDisplayDone += show ? 1 : -1;
+      if (onAnimationDone !== null && (show && this.correctnessDisplayDone === 2) || (!show && this.correctnessDisplayDone === 0)) {
+        onAnimationDone();
+      }
+    }, this.durations.correctness );
+    setTimeout( () => {
+      this.activeTransitions--;
+      this.correctnessDisplayDone += show ? 1 : -1;
+      if (onAnimationDone !== null && (show && this.correctnessDisplayDone === 2) || (!show && this.correctnessDisplayDone === 0)) {
+        onAnimationDone();
+      }
+    }, this.durations.correctness2 );
   }
 
   splitLetters( element ) {
@@ -2625,7 +2657,6 @@ class Transition {
       } );
 
     } );
-
     this.durations[ type ] = ( letters.length - 1 ) * 50 + ( show ? 800 : 400 );
 
   }
@@ -4256,15 +4287,12 @@ class Game {
 
         this.transition.timer( SHOW );
         this.transition.buttons( BUTTONS.Playing, BUTTONS.None );
-
       }, this.transition.durations.zoom - 1000 );
 
       setTimeout( () => {
-
-        this.controls.enable();
         if ( ! this.newGame ) this.timer.start( true );
         this.controls.checkIsSolved();
-
+        this.transition.correctness(SHOW, () => this.controls.enable());
       }, this.transition.durations.zoom );
 
     } else {
@@ -4278,6 +4306,7 @@ class Game {
       this.controls.disable();
       if ( ! this.newGame ) this.timer.stop();
       this.transition.timer( HIDE );
+      this.transition.correctness(HIDE);
 
       setTimeout( () => this.transition.title( SHOW ), this.transition.durations.zoom - 1000 );
 
@@ -4515,6 +4544,7 @@ function submitScore(counts){
  */
 function startGame(size, sidePermutation) {
   console.log("Starting game!");
+  window.highScore = 0;
   window.doneScramble = false;
   window.game = new Game(size, sidePermutation);
 
