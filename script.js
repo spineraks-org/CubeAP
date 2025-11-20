@@ -1953,7 +1953,9 @@ class Controls {
 
   //AP
   checkIsSolved() {
-
+    if (!window.doneScramble) {
+      return;
+    }
     const sides = { 'x-': [], 'x+': [], 'y-': [], 'y+': [], 'z-': [], 'z+': [] };
 
     this.game.cube.edges.forEach( edge => {
@@ -1964,62 +1966,94 @@ class Controls {
 
       const mainAxis = this.getMainAxis( position );
       const mainSign = position.multiplyScalar( 2 ).round()[ mainAxis ] < 1 ? '-' : '+';
+      const color = edge.name.charAt(0);
+      const isActive = edge.name.charAt(1) === 'O';
+      sides[ mainAxis + mainSign ].push({color, isActive});
 
-      sides[ mainAxis + mainSign ].push(edge);
+    } );
 
-    } ); 
-
-    // Calculate the number of correctly colored stickers per side
     let maxPossible = 0;
-    const sideKeys = Object.keys(sides);
-    
-    let bestPerColor = {'B':0,'D':0,'F':0,'L':0,'R':0,'U':0};
-    for (let i = 0; i < sideKeys.length; i++) {
-      const side = sideKeys[i];
-      if (sides[side].length === 0) continue;
-      // Count occurrences of each color
-      const colorCounts = {'B':0,'D':0,'F':0,'L':0,'R':0,'U':0};
-      for (let j = 0; j < sides[side].length; j++) {
-        const sticker = sides[side][j];
-        if (sticker.name.charAt(1) === 'O') {
-          const color = sticker.name.charAt(0);
-          colorCounts[color] += 1;
-          maxPossible += 1;
+    let isSolved = true;
+    let maxColorsPerSide = {}
+    let maxSidesPerColor = {}
+
+    for (const side in sides) 
+    {
+      const firstColor = sides[side][0].color;
+      let isAllSameColor = true;
+      let colorCounts = {};
+      for (const sticker of sides[side]) {
+        if (sticker.color !== firstColor) {
+          isAllSameColor = false;
+        }
+        if (sticker.isActive) {
+          maxPossible++;
+          colorCounts[sticker.color] = (colorCounts[sticker.color] ?? 0) + 1;
         }
       }
+      if (!isAllSameColor) {
+        isSolved = false;
+      }
+      
+      let maxCount = 0;
+      let maxColors = [];
+
       for (const color in colorCounts) {
-        // Find the second highest color count
-        const sortedCounts = Object.values(colorCounts).sort((a, b) => b - a);
-        const secondHighest = sortedCounts[1] || 0;
-        let count =  colorCounts[color];
-        if(secondHighest>0){
-          count = 0;
+        const count = colorCounts[color];
+        if (count > maxCount) {
+          maxColors = [color];
+          maxCount = count;
         }
-            
-        if(colorCounts[color] > bestPerColor[color]){
-            bestPerColor[color] = count;
+        else if (count === maxCount) {
+          maxColors.push(color);
+        }
+
+        if (!(color in maxSidesPerColor)) {
+          maxSidesPerColor[color] = {
+            score: 0,
+            sides: []
+          }
+        }
+
+        if (count > maxSidesPerColor[color].score) {
+          maxSidesPerColor[color] = {
+            score: count,
+            sides: [side]
+          }
+        }
+        else if (count === maxSidesPerColor[color].score) {
+          maxSidesPerColor[color].sides.push(side)
         }
       }
-    }
-    // const correctPerColor = `White:${bestPerColor['U']} Yellow:${bestPerColor['D']} Red:${bestPerColor['F']} Orange:${bestPerColor['B']} Blue:${bestPerColor['R']} Green:${bestPerColor['L']}`;
-
-    const correctCount = Object.values(bestPerColor).reduce((a, b) => a + b, 0);
-    const maxMaxPossible = 6 * (this.game.cube.size * this.game.cube.size);
-
-    this.game.dom.texts.correctness.textContent = `${correctCount}/${maxPossible} correct`;
-    // this.game.dom.texts.correctness2.textContent = correctPerColor;
-    window.submitScore(bestPerColor);
-
-
-    // If all stickers are correct but not all possible stickers are present, fix one sticker
-
-    if(correctCount === maxPossible && maxPossible < maxMaxPossible){
-      // console.log("BK :/")
-      // window.unlockRandomSticker();
+      maxColorsPerSide[side] = {
+        score: maxCount,
+        colors: maxColors
+      }
     }
 
-    if ( correctCount === maxMaxPossible ) this.onSolved();
+    let score = 0;
+    for (const color in maxSidesPerColor) {
+      const maxSides = maxSidesPerColor[color];
+      if (maxSides.sides.length !== 1) {
+        continue;
+      }
 
+      const side = maxSides.sides[0];
+      const maxColors = maxColorsPerSide[side];
+      if (maxColors.colors.length === 1 && maxColors.colors[0] === color) {
+        console.log('Color/Side match:', color, side, maxSides.score);
+        score += maxSides.score;
+      }
+    }
+
+    this.game.dom.texts.correctness.textContent = `${score}/${maxPossible} correct`;
+
+    if (isSolved) {
+      this.onSolved();
+      return;
+    }
+
+    window.submitScore(score);
   }
 
 }
@@ -4469,9 +4503,7 @@ function unlockSticker(sticker){
 
 function submitScore(counts){
   if(window.doneScramble){
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    console.log("Submitting score: ", counts, total);
-    window.findAndDetermineChecks(total);
+    window.findAndDetermineChecks(counts);
   }
 }
 
