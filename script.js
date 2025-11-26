@@ -896,7 +896,7 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      if (edge.name.charAt(1) === 'O') {
+      if (window.doneScramble && edge.name.charAt(1) === 'O') {
         const colorCode = sidePermutation[edge.name.charAt(0)] || edge.name.charAt(0);
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
@@ -1403,7 +1403,7 @@ class Controls {
       note.style.opacity = '1';
       setTimeout(() => {
         note.style.opacity = '0';
-        note.innerText = 'Double tap to start';
+        note.innerText = 'Double tap to start<br> and show colors';
       }, 3000 + amount_of_moves * 500);
     }
 
@@ -1860,8 +1860,8 @@ class Controls {
 
         this.scramble = null;
         window.doneScramble = true;
+        this.game.cube.updateColors(this.game.themes.getColors(), this.game.sidePermutation);
         this.game.storage.saveGame();
-
       }
 
     } );
