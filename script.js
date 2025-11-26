@@ -867,7 +867,6 @@ class Cube {
       this.pieces.push( piece );
 
     } );
-
   }
 
   /**
@@ -4252,6 +4251,10 @@ class Game {
     this.dom.buttons.stats.onclick = event => this.stats( SHOW );
 
     this.controls.onSolved = () => {
+      // Reveal the solved cube
+      window.game.cube.edges.forEach( edge => {
+        edge.name = edge.name.charAt(0) + 'O' + 'X' + edge.name.slice(3);
+      } ); 
       this.complete( SHOW );
       window.sendGoal();
     };
@@ -4571,7 +4574,6 @@ function startGame(size, sidePermutation) {
       const currentIndex = sides.indexOf(edgeIntersect.object.name.charAt(2));
       const nextIndex = (currentIndex + 1) % sides.length;
       edgeIntersect.object.name = edgeIntersect.object.name.slice(0, 2) + sides[nextIndex] + edgeIntersect.object.name.slice(3);
-      // call this.game.cube.updateColors(this.game.themes.getColors());
       window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
       return;
     }
