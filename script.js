@@ -3383,13 +3383,13 @@ class Storage {
   loadGame() {
 
     try {
-
-      const gameInProgress = localStorage.getItem( 'theCube_playing' ) === 'true';
+      const id = this.game.apId ?? 'theCube'
+      const gameInProgress = localStorage.getItem( `${id}_playing` ) === 'true';
 
       if ( ! gameInProgress ) throw new Error();
 
-      const gameCubeData = JSON.parse( localStorage.getItem( 'theCube_savedState' ) );
-      const gameTime = parseInt( localStorage.getItem( 'theCube_time' ) );
+      const gameCubeData = JSON.parse( localStorage.getItem( `${id}_savedState` ) );
+      const gameTime = parseInt( localStorage.getItem( `${id}_time` ) );
 
       if ( ! gameCubeData || gameTime === null ) throw new Error();
       if ( gameCubeData.size !== this.game.cube.sizeGenerated ) throw new Error();
@@ -3423,18 +3423,18 @@ class Storage {
       gameCubeData.rotations.push( piece.rotation.toVector3() );
 
     } );
-
-    localStorage.setItem( 'theCube_playing', gameInProgress );
-    localStorage.setItem( 'theCube_savedState', JSON.stringify( gameCubeData ) );
-    localStorage.setItem( 'theCube_time', gameTime );
+    const id = this.game.apId ?? 'theCube'
+    localStorage.setItem( `${id}_playing`, gameInProgress );
+    localStorage.setItem( `${id}_savedState`, JSON.stringify( gameCubeData ) );
+    localStorage.setItem( `${id}_time`, gameTime );
 
   }
 
   clearGame() {
-
-    localStorage.removeItem( 'theCube_playing' );
-    localStorage.removeItem( 'theCube_savedState' );
-    localStorage.removeItem( 'theCube_time' );
+    const id = this.game.apId ?? 'theCube'
+    localStorage.removeItem( `${id}_playing` );
+    localStorage.removeItem( `${id}_savedState` );
+    localStorage.removeItem( `${id}_time` );
 
   }
 
@@ -4087,8 +4087,9 @@ class Game {
 /**
  * @param {number} size Dimensions of the cube
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation) {
+  constructor(size, sidePermutation, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4141,6 +4142,7 @@ class Game {
     this.saved = false;
 
     this.storage.init(size);
+    this.apId = apId;
     this.preferences.init();
     this.cube.init();
     this.transition.init();
@@ -4254,7 +4256,8 @@ class Game {
       // Reveal the solved cube
       window.game.cube.edges.forEach( edge => {
         edge.name = edge.name.charAt(0) + 'O' + 'X' + edge.name.slice(3);
-      } ); 
+      } );
+      this.storage.clearGame();
       this.complete( SHOW );
       window.sendGoal();
     };
@@ -4543,11 +4546,20 @@ function submitScore(counts){
  * @param {number} size Dimensions of the cube
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  */
-function startGame(size, sidePermutation) {
+function startGame(size, sidePermutation, apId) {
   console.log("Starting game!");
   window.highScore = 0;
   window.doneScramble = false;
-  window.game = new Game(size, sidePermutation);
+  window.game = new Game(size, sidePermutation, apId);
+  try {
+    window.game.storage.loadGame();
+    window.doneScramble = true;
+    console.log('Save loaded')
+  }
+  catch (Error) {
+    // Just skip if save cannot be loaded.
+  }
+  
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {

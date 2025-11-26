@@ -154,6 +154,9 @@ function startAP(){
     }
 
     const connectedListener = (packet) => {
+        const hostport = localStorage.getItem("hostport");
+        const name = localStorage.getItem("name");
+
         window.is_connected = true;
         apstatus = "AP: Connected";
         console.log("Connected packet: ", packet);
@@ -163,7 +166,7 @@ function startAP(){
         document.getElementById('version').innerHTML = 'v' + window.version;
         const size_of_cube = getCubeSize(packet.slot_data);
         const sidePermutations = getSidePermutations(packet.slot_data);
-        window.startGame(size_of_cube, sidePermutations);
+        window.startGame(size_of_cube, sidePermutations, `${name}@${hostport}`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {
