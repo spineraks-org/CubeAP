@@ -1369,7 +1369,6 @@ class Controls {
     globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
     globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
     globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
-    // console.log(inverseQuaternion, globalPosition)
     
     const layer = this.getLayer(globalPosition);
     
@@ -2041,7 +2040,6 @@ class Controls {
       const side = maxSides.sides[0];
       const maxColors = maxColorsPerSide[side];
       if (maxColors.colors.length === 1 && maxColors.colors[0] === color) {
-        console.log('Color/Side match:', color, side, maxSides.score);
         score += maxSides.score;
       }
     }
@@ -4577,13 +4575,6 @@ function startGame(size, sidePermutation) {
       window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
       return;
     }
-
-    // // If not a sticker, try to intersect with cube pieces
-    // let pieceIntersect = window.game.controls.getIntersect(clickPosition, window.game.cube.cubes, true);
-    // if (pieceIntersect !== false) {
-    //   console.log('Piece name:', pieceIntersect.object.name);
-    //   return;
-    // }
 
     // If nothing found
     console.log('No square found at this position.');
