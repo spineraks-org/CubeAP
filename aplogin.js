@@ -147,7 +147,7 @@ function startAP(){
             let item = items[i][0];
             const color = item.split(' ', 2)[0];
 
-            const side = colorToSide[color];
+            const side = window.game.sidePermutation[colorToSide[color]];
 
             window.unlockSticker([side, item.split("#")[1]]);
         }
