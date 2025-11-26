@@ -46,8 +46,7 @@ function getCubeSize(slotData) {
  * @returns {Object.<string, string>}
  */
 function getSidePermutations(slotData) {
-    // If there's no version, it's 0.0.1. Permutation didn't exist
-    if (!('ap_world_version' in slotData)) {
+    if (window.version === '0.0.1') {
         return {
             'U': 'U',
             'D': 'D',
@@ -160,7 +159,8 @@ function startAP(){
         console.log("Connected packet: ", packet);
         document.getElementById("loading-screen").style.display = "none";
         document.getElementById("ui").style.display = "block";
-
+        window.version = packet.slot_data.ap_world_version ?? '0.0.1';
+        document.getElementById('version').innerHTML = 'v' + window.version;
         const size_of_cube = getCubeSize(packet.slot_data);
         const sidePermutations = getSidePermutations(packet.slot_data);
         window.startGame(size_of_cube, sidePermutations);

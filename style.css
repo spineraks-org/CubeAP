@@ -305,7 +305,7 @@ body {
   pointer-events: none;
   color: #070d15;
 }
-.ui, .ui__background, .ui__game, .ui__texts, .ui__prefs, .ui__theme, .ui__stats, .ui__buttons {
+.ui, .ui__background, .ui__game, .ui__texts, .ui__prefs, .ui__theme, .ui__stats, .ui__buttons, .ui__version {
   position: absolute;
   top: 0;
   left: 0;
@@ -352,6 +352,10 @@ body {
 }
 .ui__buttons {
   z-index: 5;
+}
+
+.ui__version {
+  z-index: 6;
 }
 
 
