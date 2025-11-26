@@ -4556,6 +4556,9 @@ function startGame(size, sidePermutation) {
   // Add an event listener for right-click (contextmenu) on the cube area
   window.game.dom.game.addEventListener('contextmenu', function(event) {
     event.preventDefault();
+    if (!window.doneScramble) {
+      return;
+    }
     // Get mouse position
     const clickEvent = event.touches
       ? (event.touches[0] || event.changedTouches[0])
