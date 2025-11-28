@@ -64,6 +64,10 @@ function getSidePermutations(slotData) {
     return sidePermutations;
 }
 
+function getSeed(slotData) {
+    return slotData.seed_name;
+}
+
 function startAP(){
     document.getElementById("login-container").style.display = "none";
     document.getElementById("loading-screen").style.display = "flex";
@@ -146,10 +150,15 @@ function startAP(){
         for (let i = 0; i < items.length; i++) {
             let item = items[i][0];
             const color = item.split(' ', 2)[0];
-
-            const side = window.game.sidePermutation[colorToSide[color]];
-
-            window.unlockSticker([side, item.split("#")[1]]);
+            const expectedSide = colorToSide[color];
+            const realSide = Object.keys(window.game.sidePermutation)
+                .find(key => window.game.sidePermutation[key] === expectedSide);
+            
+            if (realSide === undefined) {
+                console.log('Cannot associate AP color to a side', color);
+                continue;
+            }
+            window.unlockSticker([realSide, parseInt(item.split("#")[1])]);
         }
     }
 
@@ -166,7 +175,8 @@ function startAP(){
         document.getElementById('version').innerHTML = 'v' + window.version;
         const size_of_cube = getCubeSize(packet.slot_data);
         const sidePermutations = getSidePermutations(packet.slot_data);
-        window.startGame(size_of_cube, sidePermutations, `${name}@${hostport}`);
+        const seed = getSeed(packet.slot_data);
+        window.startGame(size_of_cube, sidePermutations, seed, `${name}@${hostport}`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {

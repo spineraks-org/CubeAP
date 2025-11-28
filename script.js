@@ -813,6 +813,8 @@ class Cube {
       this.geometry.edgeDepth
     );
 
+    let colorCount = {'L':0, 'R':0, 'D':0, 'U':0, 'B':0, 'F':0}
+
     this.positions.forEach( ( position, index ) => {
 
       const piece = new THREE.Object3D();
@@ -828,6 +830,11 @@ class Cube {
 
         const edge = new THREE.Mesh( edgeGeometry, mainMaterial.clone() );
         const name = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ position ];
+        const data = {
+          locked: true,
+          mark: null,
+          index: colorCount[name]++
+        };
         const distance = pieceSize / 2;
 
         edge.position.set(
@@ -847,9 +854,8 @@ class Cube {
           this.geometry.edgeScale,
           this.geometry.edgeScale
         );
-
         edge.name = name;
-
+        edge.userData = data;
         piece.add( edge );
         pieceEdges.push( name );
         this.edges.push( edge );
@@ -878,16 +884,6 @@ class Cube {
 
     if ( typeof this.pieces !== 'object' && typeof this.edges !== 'object' ) return;
 
-    //AP
-    let sideCount = {};
-    if(!this.lockedColors){
-      for (let i = 0; i < this.edges.length; i++) {
-        sideCount[this.edges[i].name.charAt(0)] = (sideCount[this.edges[i].name.charAt(0)] || 0) + 1;
-        this.edges[i].name = this.edges[i].name + 'X' + 'X' + '-' + sideCount[this.edges[i].name.charAt(0)];
-      }
-      this.lockedColors = true;
-    }
-
     this.pieces.forEach(piece => {
       piece.userData.cube.material.color.setHex(colors.P);
       piece.userData.cube.material.transparent = true;
@@ -895,8 +891,9 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      if (window.doneScramble && edge.name.charAt(1) === 'O') {
-        const colorCode = sidePermutation[edge.name.charAt(0)] || edge.name.charAt(0);
+      if ((this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
+        console.log(sidePermutation, edge.name)
+        const colorCode = sidePermutation[edge.name];
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
         edge.material.opacity = 1;
@@ -906,22 +903,22 @@ class Cube {
         edge.material.opacity = 1;
       }
 
-      // Remove previous border if exists
-      if (edge.userData && edge.userData.border) {
+      // Remove previous border if it doesn't exist anymore
+      if (edge.userData.mark === null && edge.userData.border) {
         edge.remove(edge.userData.border);
         edge.userData.border.geometry.dispose();
         edge.userData.border.material.dispose();
         edge.userData.border = null;
       }
 
-      // up next, if charAt(2) is not X, add a border and make it color edge.name.charAt(2)
-      if (edge.name.charAt(2) !== 'X') {
-        // Add a border to the edge with color colors[edge.name.charAt(2)]
+      // If sticker is marked, add outline
+      if (edge.userData.mark !== null) {
+        // Add a border to the edge with color colors[edge.userData.mark]
         // We'll use MeshBasicMaterial for the border and overlay a slightly larger plane
 
         // Add colored border mesh (outline)
         const outlineMaterial = new THREE.MeshBasicMaterial({
-          color: colors[edge.name.charAt(2)],
+          color: colors[edge.userData.mark],
           side: THREE.BackSide,
           transparent: true,
           opacity: 1,
@@ -1857,7 +1854,6 @@ class Controls {
       } else {
 
         this.scramble = null;
-        window.doneScramble = true;
         this.game.cube.updateColors(this.game.themes.getColors(), this.game.sidePermutation);
         this.game.storage.saveGame();
       }
@@ -1951,7 +1947,7 @@ class Controls {
 
   //AP
   checkIsSolved() {
-    if (!window.doneScramble) {
+    if (this.game.state !== STATE.Playing) {
       return;
     }
     const sides = { 'x-': [], 'x+': [], 'y-': [], 'y+': [], 'z-': [], 'z+': [] };
@@ -1964,8 +1960,8 @@ class Controls {
 
       const mainAxis = this.getMainAxis( position );
       const mainSign = position.multiplyScalar( 2 ).round()[ mainAxis ] < 1 ? '-' : '+';
-      const color = edge.name.charAt(0);
-      const isActive = edge.name.charAt(1) === 'O';
+      const color = edge.name;
+      const isActive = !edge.userData.locked;
       sides[ mainAxis + mainSign ].push({color, isActive});
 
     } );
@@ -1977,6 +1973,9 @@ class Controls {
 
     for (const side in sides) 
     {
+      if (sides[side].length === 0) {
+        continue;
+      }
       const firstColor = sides[side][0].color;
       let isAllSameColor = true;
       let colorCounts = {};
@@ -3352,17 +3351,6 @@ class Storage {
 
     this.game = game;
 
-    const userVersion = localStorage.getItem( 'theCube_version' );
-
-    if ( ! userVersion || userVersion !== window.gameVersion ) {
-
-      this.clearGame();
-      this.clearPreferences();
-      this.migrateScores();
-      localStorage.setItem( 'theCube_version', window.gameVersion );
-
-    }
-
     document.addEventListener('keydown', (event) => {
       if (this.game.state === STATE.Stats) {
         if (event.key === 'Delete') {
@@ -3381,36 +3369,42 @@ class Storage {
   }
 
   loadGame() {
-
-    try {
-      const id = this.game.apId ?? 'theCube'
-      const gameInProgress = localStorage.getItem( `${id}_playing` ) === 'true';
-
-      if ( ! gameInProgress ) throw new Error();
-
-      const gameCubeData = JSON.parse( localStorage.getItem( `${id}_savedState` ) );
-      const gameTime = parseInt( localStorage.getItem( `${id}_time` ) );
-
-      if ( ! gameCubeData || gameTime === null ) throw new Error();
-      if ( gameCubeData.size !== this.game.cube.sizeGenerated ) throw new Error();
-
-      this.game.cube.loadFromData( gameCubeData );
-
-      this.game.timer.deltaTime = gameTime;
-
-      this.game.saved = true;
-
-    } catch( e ) {
-
-      this.game.saved = false;
-
+    this.game.saved = false;
+    const rawSave = localStorage.getItem(this.game.apId);
+    if (rawSave === null) {
+      return;
     }
 
+    const save = JSON.parse(rawSave);
+
+    switch (save.save_version) {
+      case 1:
+        this.#loadGameV1(save);
+        break;
+    }
+  }
+
+  #loadGameV1(save) {
+    const gameCubeData = save.savedState;
+    const gameTime = save.time;
+
+    if (save.seed !== this.game.seed
+        || save.apworld_version !== window.version
+        || !gameCubeData
+        || gameTime === null
+        || gameCubeData.size !== this.game.cube.sizeGenerated
+    ) {
+      return;
+    }
+
+    this.game.cube.loadFromData( gameCubeData );
+
+    this.game.timer.deltaTime = gameTime;
+
+    this.game.saved = true;
   }
 
   saveGame() {
-
-    const gameInProgress = true;
     const gameCubeData = { names: [], positions: [], rotations: [] };
     const gameTime = this.game.timer.deltaTime;
 
@@ -3423,19 +3417,21 @@ class Storage {
       gameCubeData.rotations.push( piece.rotation.toVector3() );
 
     } );
-    const id = this.game.apId ?? 'theCube'
-    localStorage.setItem( `${id}_playing`, gameInProgress );
-    localStorage.setItem( `${id}_savedState`, JSON.stringify( gameCubeData ) );
-    localStorage.setItem( `${id}_time`, gameTime );
-
+    if (!this.game.apId) {
+      return;
+    }
+    const save = {
+      savedState: gameCubeData,
+      time: gameTime,
+      seed: this.game.seed,
+      apworld_version: window.version,
+      save_version: 1
+    }
+    localStorage.setItem(this.game.apId, JSON.stringify(save));
   }
 
   clearGame() {
-    const id = this.game.apId ?? 'theCube'
-    localStorage.removeItem( `${id}_playing` );
-    localStorage.removeItem( `${id}_savedState` );
-    localStorage.removeItem( `${id}_time` );
-
+    localStorage.removeItem( this.game.apId );
   }
 
   loadScores() {
@@ -3615,8 +3611,6 @@ class Themes {
     };
 
     this.colors = JSON.parse( JSON.stringify( this.defaults ) );
-    console.log(this.colors);
-
   }
 
   getColors() {
@@ -4089,7 +4083,7 @@ class Game {
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation, apId = null) {
+  constructor(size, sidePermutation, seed = null, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4143,6 +4137,7 @@ class Game {
 
     this.storage.init(size);
     this.apId = apId;
+    this.seed = seed;
     this.preferences.init();
     this.cube.init();
     this.transition.init();
@@ -4255,7 +4250,7 @@ class Game {
     this.controls.onSolved = () => {
       // Reveal the solved cube
       window.game.cube.edges.forEach( edge => {
-        edge.name = edge.name.charAt(0) + 'O' + 'X' + edge.name.slice(3);
+        edge.userData.locked = false;
       } );
       this.storage.clearGame();
       this.complete( SHOW );
@@ -4275,7 +4270,6 @@ class Game {
         this.newGame = true;
 
       }
-
       const duration = this.saved ? 0 :
         this.scrambler.converted.length * ( this.controls.flipSpeeds[0] + 10 );
 
@@ -4502,13 +4496,12 @@ function unlockSticker(sticker){
 
     const mainAxis = window.game.controls.getMainAxis( position );
     const mainSign = position.multiplyScalar( 2 ).round()[ mainAxis ] < 1 ? '-' : '+';
-
     sides[ mainAxis + mainSign ].push(edge);
 
   } ); 
 
   const wantedSide = sticker[0];
-  const wantedNumber = sticker[1] + '';
+  const wantedNumber = sticker[1];
 
   const sideKeys = Object.keys(sides);
   let changed = false;
@@ -4517,9 +4510,8 @@ function unlockSticker(sticker){
     if (sides[side].length === 0) continue;
     for (let j = 0; j < sides[side].length; j++) {
       const sticker = sides[side][j];
-      if (sticker.name.charAt(0) === wantedSide && sticker.name.slice(4) === wantedNumber) {
-        // Change this sticker to the most common color on this side
-        sticker.name = sticker.name.charAt(0) + 'O' + 'X' + sticker.name.slice(3);
+      if (sticker.name === wantedSide && sticker.userData.index + 1 === wantedNumber) {
+        sticker.userData.locked = false;
         changed = true;
         break;
       }
@@ -4535,7 +4527,7 @@ function unlockSticker(sticker){
 }
 
 function submitScore(counts){
-  if(window.doneScramble){
+  if (this.game.state !== STATE.Playing) {
     window.findAndDetermineChecks(counts);
   }
 }
@@ -4546,20 +4538,11 @@ function submitScore(counts){
  * @param {number} size Dimensions of the cube
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  */
-function startGame(size, sidePermutation, apId) {
+function startGame(size, sidePermutation, seed, apId) {
   console.log("Starting game!");
   window.highScore = 0;
-  window.doneScramble = false;
-  window.game = new Game(size, sidePermutation, apId);
-  try {
-    window.game.storage.loadGame();
-    window.doneScramble = true;
-    console.log('Save loaded')
-  }
-  catch (Error) {
-    // Just skip if save cannot be loaded.
-  }
-  
+  window.game = new Game(size, sidePermutation, seed, apId);
+  window.game.storage.loadGame();
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {
@@ -4569,7 +4552,7 @@ function startGame(size, sidePermutation, apId) {
   // Add an event listener for right-click (contextmenu) on the cube area
   window.game.dom.game.addEventListener('contextmenu', function(event) {
     event.preventDefault();
-    if (!window.doneScramble) {
+    if (window.game.state !== STATE.Playing) {
       return;
     }
     // Get mouse position
@@ -4583,9 +4566,9 @@ function startGame(size, sidePermutation, apId) {
     if (edgeIntersect !== false) {
       // change the third letter of the name to F
       const sides = ['X', 'F', 'R', 'B', 'L', 'U', 'D'];
-      const currentIndex = sides.indexOf(edgeIntersect.object.name.charAt(2));
+      const currentIndex = sides.indexOf(edgeIntersect.object.userData.mark);
       const nextIndex = (currentIndex + 1) % sides.length;
-      edgeIntersect.object.name = edgeIntersect.object.name.slice(0, 2) + sides[nextIndex] + edgeIntersect.object.name.slice(3);
+      edgeIntersect.object.userData.mark = sides[nextIndex];
       window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
       return;
     }
