@@ -201,7 +201,7 @@ function startAP(){
     }
 
     function findAndDetermineChecks(total){
-        for (let i = window.highScore + 1; i <= total; i++) {
+        for (let i = window.lastCorrectSent + 1; i <= total; i++) {
             sendCheck(267780000 + i);
         }
     }

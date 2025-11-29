@@ -829,11 +829,12 @@ class Cube {
       position.edges.forEach( position => {
 
         const edge = new THREE.Mesh( edgeGeometry, mainMaterial.clone() );
-        const name = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ position ];
+        const color = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ position ];
+        const name = color + (colorCount[color]++);
         const data = {
           locked: true,
           mark: null,
-          index: colorCount[name]++
+          color: color
         };
         const distance = pieceSize / 2;
 
@@ -859,9 +860,7 @@ class Cube {
         piece.add( edge );
         pieceEdges.push( name );
         this.edges.push( edge );
-
       } );
-
       piece.userData.edges = pieceEdges;
       piece.userData.cube = pieceCube;
 
@@ -892,8 +891,7 @@ class Cube {
     
     this.edges.forEach( edge => {
       if ((this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
-        console.log(sidePermutation, edge.name)
-        const colorCode = sidePermutation[edge.name];
+        const colorCode = sidePermutation[edge.userData.color];
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
         edge.material.opacity = 1;
@@ -902,38 +900,32 @@ class Cube {
         edge.material.transparent = true;
         edge.material.opacity = 1;
       }
-
-      // Remove previous border if it doesn't exist anymore
-      if (edge.userData.mark === null && edge.userData.border) {
-        edge.remove(edge.userData.border);
-        edge.userData.border.geometry.dispose();
-        edge.userData.border.material.dispose();
-        edge.userData.border = null;
-      }
-
-      // If sticker is marked, add outline
       if (edge.userData.mark !== null) {
-        // Add a border to the edge with color colors[edge.userData.mark]
-        // We'll use MeshBasicMaterial for the border and overlay a slightly larger plane
-
-        // Add colored border mesh (outline)
-        const outlineMaterial = new THREE.MeshBasicMaterial({
-          color: colors[edge.userData.mark],
-          side: THREE.BackSide,
-          transparent: true,
-          opacity: 1,
-        });
-        const outlineMesh = new THREE.Mesh(edge.geometry.clone(), outlineMaterial);
-        outlineMesh.scale.multiplyScalar(1.10); // Increased for thicker border
-        outlineMesh.position.set(0, 0, 0); // Centered on edge
-        outlineMesh.rotation.set(0, 0, 0); // No extra rotation
-        outlineMesh.renderOrder = 1; // Ensure border renders above
-
-        edge.add(outlineMesh);
-        edge.userData.border = outlineMesh;
+        if (!edge.userData.border) {
+          const outlineMaterial = new THREE.MeshBasicMaterial({
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 1,
+          });
+          const outlineMesh = new THREE.Mesh(edge.geometry.clone(), outlineMaterial);
+          outlineMesh.scale.multiplyScalar(1.10); // Increased for thicker border
+          outlineMesh.position.set(0, 0, 0); // Centered on edge
+          outlineMesh.rotation.set(0, 0, 0); // No extra rotation
+          outlineMesh.renderOrder = 1; // Ensure border renders above
+          edge.add(outlineMesh);
+          edge.userData.border = outlineMesh;
+        }
+        edge.userData.border.material.color.setHex(colors[edge.userData.mark]);
       }
-
-
+      else
+      {
+        if (edge.userData.border) {
+          edge.remove(edge.userData.border);
+          edge.userData.border.geometry.dispose();
+          edge.userData.border.material.dispose();
+          edge.userData.border = null;
+        }
+      }
     });
 
   }
@@ -954,7 +946,9 @@ class Cube {
 
       piece.position.set( position.x, position.y, position.z );
       piece.rotation.set( rotation.x, rotation.y, rotation.z );
-
+      piece.children.forEach(edge => {
+        edge.userData.mark = data.marks[edge.name] ?? null;
+      })
     } );
 
   }
@@ -1468,6 +1462,7 @@ class Controls {
         this.flipAxis[axis] = 1;
         this.rotateCube(angle, () => {
           this.state = STILL;
+          this.game.storage.saveGame();
         });
       }
 
@@ -1655,7 +1650,7 @@ class Controls {
 
           this.state = this.gettingDrag ? PREPARING : STILL;
           this.gettingDrag = false;
-
+          this.game.storage.saveGame();
         } );
 
       }
@@ -1960,9 +1955,7 @@ class Controls {
 
       const mainAxis = this.getMainAxis( position );
       const mainSign = position.multiplyScalar( 2 ).round()[ mainAxis ] < 1 ? '-' : '+';
-      const color = edge.name;
-      const isActive = !edge.userData.locked;
-      sides[ mainAxis + mainSign ].push({color, isActive});
+      sides[ mainAxis + mainSign ].push(edge.userData);
 
     } );
 
@@ -1983,7 +1976,7 @@ class Controls {
         if (sticker.color !== firstColor) {
           isAllSameColor = false;
         }
-        if (sticker.isActive) {
+        if (!sticker.locked) {
           maxPossible++;
           colorCounts[sticker.color] = (colorCounts[sticker.color] ?? 0) + 1;
         }
@@ -3385,7 +3378,7 @@ class Storage {
   }
 
   #loadGameV1(save) {
-    const gameCubeData = save.savedState;
+    const gameCubeData = save.saved_state;
     const gameTime = save.time;
 
     if (save.seed !== this.game.seed
@@ -3398,6 +3391,8 @@ class Storage {
     }
 
     this.game.cube.loadFromData( gameCubeData );
+    this.game.controls.edges.rotation.setFromVector3(save.cube_rotation);
+    this.game.cube.object.rotation.copy( this.game.controls.edges.rotation );
 
     this.game.timer.deltaTime = gameTime;
 
@@ -3405,26 +3400,38 @@ class Storage {
   }
 
   saveGame() {
-    const gameCubeData = { names: [], positions: [], rotations: [] };
+    if (!this.game.apId) {
+      return;
+    }
+
+    const gameCubeData = {
+      names: [],
+      positions: [],
+      rotations: []
+    };
     const gameTime = this.game.timer.deltaTime;
 
     gameCubeData.size = this.game.cube.sizeGenerated;
 
     this.game.cube.pieces.forEach( piece => {
-
       gameCubeData.names.push( piece.name );
       gameCubeData.positions.push( piece.position );
       gameCubeData.rotations.push( piece.rotation.toVector3() );
 
     } );
-    if (!this.game.apId) {
-      return;
-    }
+
+    gameCubeData.marks = Object.fromEntries(
+      this.game.cube.edges
+        .filter(edge => edge.userData.mark !== null)
+        .map(edge => [edge.name, edge.userData.mark])
+    );
+    
     const save = {
-      savedState: gameCubeData,
+      saved_state: gameCubeData,
       time: gameTime,
       seed: this.game.seed,
       apworld_version: window.version,
+      cube_rotation: this.game.controls.edges.rotation.toVector3(),
       save_version: 1
     }
     localStorage.setItem(this.game.apId, JSON.stringify(save));
@@ -4252,6 +4259,7 @@ class Game {
       window.game.cube.edges.forEach( edge => {
         edge.userData.locked = false;
       } );
+      window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
       this.storage.clearGame();
       this.complete( SHOW );
       window.sendGoal();
@@ -4419,10 +4427,11 @@ class Game {
       this.transition.buttons( BUTTONS.Menu, BUTTONS.None );
 
       this.transition.stats( HIDE );
-
-      setTimeout( () => this.transition.cube( SHOW ), 500 );
-      setTimeout( () => this.transition.title( SHOW ), 1200 );
-
+      document.getElementById("login-container").style.display = "flex";
+      document.getElementById("ui").style.display = "none";
+      document.getElementsByClassName("ui__game").item(0).innerHTML = '';
+      document.getElementsByClassName("text--correctness").item(0).innerHTML = '';
+      document.getElementsByClassName("text--correctness2").item(0).innerHTML = '';
     }
 
   }
@@ -4499,9 +4508,7 @@ function unlockSticker(sticker){
     sides[ mainAxis + mainSign ].push(edge);
 
   } ); 
-
-  const wantedSide = sticker[0];
-  const wantedNumber = sticker[1];
+  const stickerName = sticker[0] + (sticker[1] - 1)
 
   const sideKeys = Object.keys(sides);
   let changed = false;
@@ -4510,7 +4517,7 @@ function unlockSticker(sticker){
     if (sides[side].length === 0) continue;
     for (let j = 0; j < sides[side].length; j++) {
       const sticker = sides[side][j];
-      if (sticker.name === wantedSide && sticker.userData.index + 1 === wantedNumber) {
+      if (sticker.name === stickerName) {
         sticker.userData.locked = false;
         changed = true;
         break;
@@ -4527,7 +4534,7 @@ function unlockSticker(sticker){
 }
 
 function submitScore(counts){
-  if (this.game.state !== STATE.Playing) {
+  if (this.game.state === STATE.Playing) {
     window.findAndDetermineChecks(counts);
   }
 }
@@ -4541,6 +4548,7 @@ function submitScore(counts){
 function startGame(size, sidePermutation, seed, apId) {
   console.log("Starting game!");
   window.highScore = 0;
+  window.lastCorrectSent = 0;
   window.game = new Game(size, sidePermutation, seed, apId);
   window.game.storage.loadGame();
 
@@ -4565,11 +4573,12 @@ function startGame(size, sidePermutation, seed, apId) {
     let edgeIntersect = window.game.controls.getIntersect(clickPosition, window.game.cube.edges, true);
     if (edgeIntersect !== false) {
       // change the third letter of the name to F
-      const sides = ['X', 'F', 'R', 'B', 'L', 'U', 'D'];
+      const sides = [null, 'F', 'R', 'B', 'L', 'U', 'D'];
       const currentIndex = sides.indexOf(edgeIntersect.object.userData.mark);
       const nextIndex = (currentIndex + 1) % sides.length;
       edgeIntersect.object.userData.mark = sides[nextIndex];
       window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
+      window.game.storage.saveGame();
       return;
     }
 
