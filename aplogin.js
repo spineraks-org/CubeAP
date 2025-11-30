@@ -203,8 +203,8 @@ function startAP(){
     function findAndDetermineChecks(total){
         for (let i = window.lastCorrectSent + 1; i <= total; i++) {
             sendCheck(267780000 + i);
+            window.lastCorrectSent = i;
         }
-        window.lastCorrectSent = total;
     }
     window.findAndDetermineChecks = findAndDetermineChecks;
 

@@ -3419,6 +3419,9 @@ class Storage {
     this.game.controls.edges.rotation.setFromVector3(save.cube_rotation);
     this.game.cube.object.rotation.copy( this.game.controls.edges.rotation );
 
+    window.highScore = save.high_score;
+    window.submitScore(save.high_score);
+
     this.game.timer.deltaTime = gameTime;
 
     this.game.saved = true;
@@ -3457,7 +3460,8 @@ class Storage {
       seed: this.game.seed,
       apworld_version: window.version,
       cube_rotation: this.game.controls.edges.rotation.toVector3(),
-      save_version: 1
+      save_version: 1,
+      high_score: window.highScore
     }
     localStorage.setItem(this.game.apId, JSON.stringify(save));
   }
@@ -4576,7 +4580,6 @@ function startGame(size, sidePermutation, seed, apId) {
   window.highScore = 0;
   window.lastCorrectSent = 0;
   window.game = new Game(size, sidePermutation, seed, apId);
-  window.game.storage.loadGame();
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {
