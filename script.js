@@ -784,8 +784,25 @@ class Cube {
           if ( z == 0 ) edges.push(4);
           if ( z == m ) edges.push(5);
 
-          position.edges = edges;
-          this.positions.push( position );
+          let pieceType = '';
+          let isMiddle;
+
+          switch (edges.length) {
+            case 1:
+              pieceType = 'center';
+              isMiddle = position.toArray().filter(x => x === 0).length === 2;
+              break;
+            case 2:
+              pieceType = 'edge';
+              isMiddle = position.toArray().filter(x => x === 0).length === 1;
+              break;
+            case 3:
+              pieceType = 'corner';
+              isMiddle = false;
+              break;
+          }
+
+          this.positions.push( {position, edges, pieceType, isMiddle} );
 
         }
       }
@@ -813,10 +830,10 @@ class Cube {
       this.geometry.edgeDepth
     );
 
+    let baseNameCount = {}
     let colorCount = {'L':0, 'R':0, 'D':0, 'U':0, 'B':0, 'F':0}
 
-    this.positions.forEach( ( position, index ) => {
-
+    this.positions.forEach( ( {position, edges, pieceType, isMiddle}, index ) => {
       const piece = new THREE.Object3D();
       const pieceCube = pieceMesh.clone();
       const pieceEdges = [];
@@ -826,27 +843,35 @@ class Cube {
       piece.name = index;
       piece.edgesName = '';
 
-      position.edges.forEach( position => {
+      const basePieceName = pieceType + (isMiddle ? '-middle' : '');
+
+      edges.forEach( side => {
 
         const edge = new THREE.Mesh( edgeGeometry, mainMaterial.clone() );
-        const color = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ position ];
-        const name = color + (colorCount[color]++);
+        const color = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ side ];
+        const baseName = color + '-' + basePieceName;
+        const edgeIndex = baseNameCount[baseName] ?? 0;
+        const name = baseName + '-' + edgeIndex;
+        baseNameCount[baseName] = edgeIndex + 1;
         const data = {
           locked: true,
           mark: null,
-          color: color
+          color: color,
+          colorIndex: colorCount[color]++,
+          pieceType: pieceType,
+          isMiddlePiece: isMiddle
         };
         const distance = pieceSize / 2;
 
         edge.position.set(
-          distance * [ - 1, 1, 0, 0, 0, 0 ][ position ],
-          distance * [ 0, 0, - 1, 1, 0, 0 ][ position ],
-          distance * [ 0, 0, 0, 0, - 1, 1 ][ position ]
+          distance * [ - 1, 1, 0, 0, 0, 0 ][ side ],
+          distance * [ 0, 0, - 1, 1, 0, 0 ][ side ],
+          distance * [ 0, 0, 0, 0, - 1, 1 ][ side ]
         );
 
         edge.rotation.set(
-          Math.PI / 2 * [ 0, 0, 1, - 1, 0, 0 ][ position ],
-          Math.PI / 2 * [ - 1, 1, 0, 0, 2, 0 ][ position ],
+          Math.PI / 2 * [ 0, 0, 1, - 1, 0, 0 ][ side ],
+          Math.PI / 2 * [ - 1, 1, 0, 0, 2, 0 ][ side ],
           0
         );
 
@@ -4508,7 +4533,8 @@ function unlockSticker(sticker){
     sides[ mainAxis + mainSign ].push(edge);
 
   } ); 
-  const stickerName = sticker[0] + (sticker[1] - 1)
+  const stickerName = sticker[0];
+  const sideIndex = sticker[1] - 1;
 
   const sideKeys = Object.keys(sides);
   let changed = false;
@@ -4517,7 +4543,7 @@ function unlockSticker(sticker){
     if (sides[side].length === 0) continue;
     for (let j = 0; j < sides[side].length; j++) {
       const sticker = sides[side][j];
-      if (sticker.name === stickerName) {
+      if (sticker.userData.color === stickerName && sticker.userData.colorIndex === sideIndex) {
         sticker.userData.locked = false;
         changed = true;
         break;
