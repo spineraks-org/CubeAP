@@ -1404,6 +1404,7 @@ class Controls {
   }
 
   doDeathLink(source, cause) {
+    this.game.moveStack.clear();
     const amount_of_moves = document.getElementById('deathlink-scramble').value;
 
     if(document.getElementById('show-deathlinks').checked){
@@ -4107,6 +4108,10 @@ class MoveStack {
       return null;
     }
     return lastMove;
+  }
+
+  clear() {
+    this.moves = [];
   }
 }
 
