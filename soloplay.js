@@ -87,7 +87,7 @@ function startSolo(size = 2){
 
     window.connectToServer = connectToServer;
 
-    console.log("0.0.2 solo", size)
+    console.log("0.0.3 solo", size)
     window.is_connected = false;
 
 

@@ -46,8 +46,7 @@ function getCubeSize(slotData) {
  * @returns {Object.<string, string>}
  */
 function getSidePermutations(slotData) {
-    // If there's no version, it's 0.0.1. Permutation didn't exist
-    if (!('ap_world_version' in slotData)) {
+    if (window.version === '0.0.1') {
         return {
             'U': 'U',
             'D': 'D',
@@ -65,9 +64,13 @@ function getSidePermutations(slotData) {
     return sidePermutations;
 }
 
+function getSeed(slotData) {
+    return slotData.seed_name;
+}
+
 function startAP(){
     document.getElementById("login-container").style.display = "none";
-    document.getElementById("ui").style.display = "block";
+    document.getElementById("loading-screen").style.display = "flex";
 
     localStorage.setItem("hostport", document.getElementById("hostport").value);
     localStorage.setItem("name", document.getElementById("name").value);
@@ -97,7 +100,25 @@ function startAP(){
                 console.log("Connected to the server");
             })
             .catch((error) => {
-                console.log("Failed to connect", error)
+                let errorMessages = ['Error while connecting to the server:\n'];
+                if (typeof error.errors === 'undefined') {
+                    errorMessages.push('Make sure that the server and the port are correct.')
+                }
+                else {
+                    for (const errorCode of error.errors) {
+                        switch (errorCode) {
+                            case 'InvalidSlot':
+                                errorMessages.push('This slot does not exist. Make sure that the player name is correct.')
+                                break
+                            case 'InvalidPassword':
+                                errorMessages.push('The password is not correct.')
+                                break;
+                        }
+                    }
+                }
+                alert(errorMessages.join('\n'));
+                document.getElementById("login-container").style.display = "flex";
+                document.getElementById("loading-screen").style.display = "none";
             });
 
     }
@@ -129,21 +150,33 @@ function startAP(){
         for (let i = 0; i < items.length; i++) {
             let item = items[i][0];
             const color = item.split(' ', 2)[0];
-
-            const side = colorToSide[color];
-
-            window.unlockSticker([side, item.split("#")[1]]);
+            const expectedSide = colorToSide[color];
+            const realSide = Object.keys(window.game.sidePermutation)
+                .find(key => window.game.sidePermutation[key] === expectedSide);
+            
+            if (realSide === undefined) {
+                console.log('Cannot associate AP color to a side', color);
+                continue;
+            }
+            window.unlockSticker([realSide, parseInt(item.split("#")[1])]);
         }
     }
 
     const connectedListener = (packet) => {
+        const hostport = localStorage.getItem("hostport");
+        const name = localStorage.getItem("name");
+
         window.is_connected = true;
         apstatus = "AP: Connected";
         console.log("Connected packet: ", packet);
-
+        document.getElementById("loading-screen").style.display = "none";
+        document.getElementById("ui").style.display = "block";
+        window.version = packet.slot_data.ap_world_version ?? '0.0.1';
+        document.getElementById('version').innerHTML = 'v' + window.version;
         const size_of_cube = getCubeSize(packet.slot_data);
         const sidePermutations = getSidePermutations(packet.slot_data);
-        window.startGame(size_of_cube, sidePermutations);
+        const seed = getSeed(packet.slot_data);
+        window.startGame(size_of_cube, sidePermutations, seed, `${name}@${hostport}`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {
@@ -167,14 +200,11 @@ function startAP(){
         window.doDeathLink(source, cause);
     }
 
-    var highScore = 0
     function findAndDetermineChecks(total){
-        console.log(highScore, total);
-        if(total <= highScore) return;
-        for (let i = highScore + 1; i <= total; i++) {
+        for (let i = window.lastCorrectSent + 1; i <= total; i++) {
             sendCheck(267780000 + i);
         }
-        highScore = Math.max(highScore, total);
+        window.lastCorrectSent = total;
     }
     window.findAndDetermineChecks = findAndDetermineChecks;
 
@@ -192,6 +222,6 @@ function startAP(){
     window.sendCheck = sendCheck;
     window.sendGoal = sendGoal;
 
-    console.log("0.0.2")
+    console.log("0.0.3")
     connectToServer();
 }

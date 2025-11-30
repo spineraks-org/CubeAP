@@ -784,8 +784,25 @@ class Cube {
           if ( z == 0 ) edges.push(4);
           if ( z == m ) edges.push(5);
 
-          position.edges = edges;
-          this.positions.push( position );
+          let pieceType = '';
+          let isMiddle;
+
+          switch (edges.length) {
+            case 1:
+              pieceType = 'center';
+              isMiddle = position.toArray().filter(x => x === 0).length === 2;
+              break;
+            case 2:
+              pieceType = 'edge';
+              isMiddle = position.toArray().filter(x => x === 0).length === 1;
+              break;
+            case 3:
+              pieceType = 'corner';
+              isMiddle = false;
+              break;
+          }
+
+          this.positions.push( {position, edges, pieceType, isMiddle} );
 
         }
       }
@@ -813,8 +830,10 @@ class Cube {
       this.geometry.edgeDepth
     );
 
-    this.positions.forEach( ( position, index ) => {
+    let baseNameCount = {}
+    let colorCount = {'L':0, 'R':0, 'D':0, 'U':0, 'B':0, 'F':0}
 
+    this.positions.forEach( ( {position, edges, pieceType, isMiddle}, index ) => {
       const piece = new THREE.Object3D();
       const pieceCube = pieceMesh.clone();
       const pieceEdges = [];
@@ -824,21 +843,35 @@ class Cube {
       piece.name = index;
       piece.edgesName = '';
 
-      position.edges.forEach( position => {
+      const basePieceName = pieceType + (isMiddle ? '-middle' : '');
+
+      edges.forEach( side => {
 
         const edge = new THREE.Mesh( edgeGeometry, mainMaterial.clone() );
-        const name = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ position ];
+        const color = [ 'L', 'R', 'D', 'U', 'B', 'F' ][ side ];
+        const baseName = color + '-' + basePieceName;
+        const edgeIndex = baseNameCount[baseName] ?? 0;
+        const name = baseName + '-' + edgeIndex;
+        baseNameCount[baseName] = edgeIndex + 1;
+        const data = {
+          locked: true,
+          mark: null,
+          color: color,
+          colorIndex: colorCount[color]++,
+          pieceType: pieceType,
+          isMiddlePiece: isMiddle
+        };
         const distance = pieceSize / 2;
 
         edge.position.set(
-          distance * [ - 1, 1, 0, 0, 0, 0 ][ position ],
-          distance * [ 0, 0, - 1, 1, 0, 0 ][ position ],
-          distance * [ 0, 0, 0, 0, - 1, 1 ][ position ]
+          distance * [ - 1, 1, 0, 0, 0, 0 ][ side ],
+          distance * [ 0, 0, - 1, 1, 0, 0 ][ side ],
+          distance * [ 0, 0, 0, 0, - 1, 1 ][ side ]
         );
 
         edge.rotation.set(
-          Math.PI / 2 * [ 0, 0, 1, - 1, 0, 0 ][ position ],
-          Math.PI / 2 * [ - 1, 1, 0, 0, 2, 0 ][ position ],
+          Math.PI / 2 * [ 0, 0, 1, - 1, 0, 0 ][ side ],
+          Math.PI / 2 * [ - 1, 1, 0, 0, 2, 0 ][ side ],
           0
         );
 
@@ -847,15 +880,12 @@ class Cube {
           this.geometry.edgeScale,
           this.geometry.edgeScale
         );
-
         edge.name = name;
-
+        edge.userData = data;
         piece.add( edge );
         pieceEdges.push( name );
         this.edges.push( edge );
-
       } );
-
       piece.userData.edges = pieceEdges;
       piece.userData.cube = pieceCube;
 
@@ -867,7 +897,6 @@ class Cube {
       this.pieces.push( piece );
 
     } );
-
   }
 
   /**
@@ -879,16 +908,6 @@ class Cube {
 
     if ( typeof this.pieces !== 'object' && typeof this.edges !== 'object' ) return;
 
-    //AP
-    let sideCount = {};
-    if(!this.lockedColors){
-      for (let i = 0; i < this.edges.length; i++) {
-        sideCount[this.edges[i].name.charAt(0)] = (sideCount[this.edges[i].name.charAt(0)] || 0) + 1;
-        this.edges[i].name = this.edges[i].name + 'X' + 'X' + '-' + sideCount[this.edges[i].name.charAt(0)];
-      }
-      this.lockedColors = true;
-    }
-
     this.pieces.forEach(piece => {
       piece.userData.cube.material.color.setHex(colors.P);
       piece.userData.cube.material.transparent = true;
@@ -896,8 +915,8 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      if (edge.name.charAt(1) === 'O') {
-        const colorCode = sidePermutation[edge.name.charAt(0)] || edge.name.charAt(0);
+      if ((this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
+        const colorCode = sidePermutation[edge.userData.color];
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
         edge.material.opacity = 1;
@@ -906,38 +925,32 @@ class Cube {
         edge.material.transparent = true;
         edge.material.opacity = 1;
       }
-
-      // Remove previous border if exists
-      if (edge.userData && edge.userData.border) {
-        edge.remove(edge.userData.border);
-        edge.userData.border.geometry.dispose();
-        edge.userData.border.material.dispose();
-        edge.userData.border = null;
+      if (edge.userData.mark !== null) {
+        if (!edge.userData.border) {
+          const outlineMaterial = new THREE.MeshBasicMaterial({
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 1,
+          });
+          const outlineMesh = new THREE.Mesh(edge.geometry.clone(), outlineMaterial);
+          outlineMesh.scale.multiplyScalar(1.10); // Increased for thicker border
+          outlineMesh.position.set(0, 0, 0); // Centered on edge
+          outlineMesh.rotation.set(0, 0, 0); // No extra rotation
+          outlineMesh.renderOrder = 1; // Ensure border renders above
+          edge.add(outlineMesh);
+          edge.userData.border = outlineMesh;
+        }
+        edge.userData.border.material.color.setHex(colors[edge.userData.mark]);
       }
-
-      // up next, if charAt(2) is not X, add a border and make it color edge.name.charAt(2)
-      if (edge.name.charAt(2) !== 'X') {
-        // Add a border to the edge with color colors[edge.name.charAt(2)]
-        // We'll use MeshBasicMaterial for the border and overlay a slightly larger plane
-
-        // Add colored border mesh (outline)
-        const outlineMaterial = new THREE.MeshBasicMaterial({
-          color: colors[edge.name.charAt(2)],
-          side: THREE.BackSide,
-          transparent: true,
-          opacity: 1,
-        });
-        const outlineMesh = new THREE.Mesh(edge.geometry.clone(), outlineMaterial);
-        outlineMesh.scale.multiplyScalar(1.10); // Increased for thicker border
-        outlineMesh.position.set(0, 0, 0); // Centered on edge
-        outlineMesh.rotation.set(0, 0, 0); // No extra rotation
-        outlineMesh.renderOrder = 1; // Ensure border renders above
-
-        edge.add(outlineMesh);
-        edge.userData.border = outlineMesh;
+      else
+      {
+        if (edge.userData.border) {
+          edge.remove(edge.userData.border);
+          edge.userData.border.geometry.dispose();
+          edge.userData.border.material.dispose();
+          edge.userData.border = null;
+        }
       }
-
-
     });
 
   }
@@ -958,7 +971,9 @@ class Cube {
 
       piece.position.set( position.x, position.y, position.z );
       piece.rotation.set( rotation.x, rotation.y, rotation.z );
-
+      piece.children.forEach(edge => {
+        edge.userData.mark = data.marks[edge.name] ?? null;
+      })
     } );
 
   }
@@ -1369,7 +1384,6 @@ class Controls {
     globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
     globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
     globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
-    // console.log(inverseQuaternion, globalPosition)
     
     const layer = this.getLayer(globalPosition);
     
@@ -1403,7 +1417,7 @@ class Controls {
       note.style.opacity = '1';
       setTimeout(() => {
         note.style.opacity = '0';
-        note.innerText = 'Double tap to start';
+        note.innerText = 'Double tap to start<br> and show colors';
       }, 3000 + amount_of_moves * 500);
     }
 
@@ -1473,6 +1487,7 @@ class Controls {
         this.flipAxis[axis] = 1;
         this.rotateCube(angle, () => {
           this.state = STILL;
+          this.game.storage.saveGame();
         });
       }
 
@@ -1660,7 +1675,7 @@ class Controls {
 
           this.state = this.gettingDrag ? PREPARING : STILL;
           this.gettingDrag = false;
-
+          this.game.storage.saveGame();
         } );
 
       }
@@ -1859,9 +1874,8 @@ class Controls {
       } else {
 
         this.scramble = null;
-        window.doneScramble = true;
+        this.game.cube.updateColors(this.game.themes.getColors(), this.game.sidePermutation);
         this.game.storage.saveGame();
-
       }
 
     } );
@@ -1953,7 +1967,9 @@ class Controls {
 
   //AP
   checkIsSolved() {
-
+    if (this.game.state !== STATE.Playing) {
+      return;
+    }
     const sides = { 'x-': [], 'x+': [], 'y-': [], 'y+': [], 'z-': [], 'z+': [] };
 
     this.game.cube.edges.forEach( edge => {
@@ -1964,62 +1980,95 @@ class Controls {
 
       const mainAxis = this.getMainAxis( position );
       const mainSign = position.multiplyScalar( 2 ).round()[ mainAxis ] < 1 ? '-' : '+';
+      sides[ mainAxis + mainSign ].push(edge.userData);
 
-      sides[ mainAxis + mainSign ].push(edge);
+    } );
 
-    } ); 
-
-    // Calculate the number of correctly colored stickers per side
     let maxPossible = 0;
-    const sideKeys = Object.keys(sides);
-    
-    let bestPerColor = {'B':0,'D':0,'F':0,'L':0,'R':0,'U':0};
-    for (let i = 0; i < sideKeys.length; i++) {
-      const side = sideKeys[i];
-      if (sides[side].length === 0) continue;
-      // Count occurrences of each color
-      const colorCounts = {'B':0,'D':0,'F':0,'L':0,'R':0,'U':0};
-      for (let j = 0; j < sides[side].length; j++) {
-        const sticker = sides[side][j];
-        if (sticker.name.charAt(1) === 'O') {
-          const color = sticker.name.charAt(0);
-          colorCounts[color] += 1;
-          maxPossible += 1;
+    let isSolved = true;
+    let maxColorsPerSide = {}
+    let maxSidesPerColor = {}
+
+    for (const side in sides) 
+    {
+      if (sides[side].length === 0) {
+        continue;
+      }
+      const firstColor = sides[side][0].color;
+      let isAllSameColor = true;
+      let colorCounts = {};
+      for (const sticker of sides[side]) {
+        if (sticker.color !== firstColor) {
+          isAllSameColor = false;
+        }
+        if (!sticker.locked) {
+          maxPossible++;
+          colorCounts[sticker.color] = (colorCounts[sticker.color] ?? 0) + 1;
         }
       }
+      if (!isAllSameColor) {
+        isSolved = false;
+      }
+      
+      let maxCount = 0;
+      let maxColors = [];
+
       for (const color in colorCounts) {
-        // Find the second highest color count
-        const sortedCounts = Object.values(colorCounts).sort((a, b) => b - a);
-        const secondHighest = sortedCounts[1] || 0;
-        let count =  colorCounts[color];
-        if(secondHighest>0){
-          count = 0;
+        const count = colorCounts[color];
+        if (count > maxCount) {
+          maxColors = [color];
+          maxCount = count;
         }
-            
-        if(colorCounts[color] > bestPerColor[color]){
-            bestPerColor[color] = count;
+        else if (count === maxCount) {
+          maxColors.push(color);
+        }
+
+        if (!(color in maxSidesPerColor)) {
+          maxSidesPerColor[color] = {
+            score: 0,
+            sides: []
+          }
+        }
+
+        if (count > maxSidesPerColor[color].score) {
+          maxSidesPerColor[color] = {
+            score: count,
+            sides: [side]
+          }
+        }
+        else if (count === maxSidesPerColor[color].score) {
+          maxSidesPerColor[color].sides.push(side)
         }
       }
-    }
-    // const correctPerColor = `White:${bestPerColor['U']} Yellow:${bestPerColor['D']} Red:${bestPerColor['F']} Orange:${bestPerColor['B']} Blue:${bestPerColor['R']} Green:${bestPerColor['L']}`;
-
-    const correctCount = Object.values(bestPerColor).reduce((a, b) => a + b, 0);
-    const maxMaxPossible = 6 * (this.game.cube.size * this.game.cube.size);
-
-    this.game.dom.texts.correctness.textContent = `${correctCount}/${maxPossible} correct`;
-    // this.game.dom.texts.correctness2.textContent = correctPerColor;
-    window.submitScore(bestPerColor);
-
-
-    // If all stickers are correct but not all possible stickers are present, fix one sticker
-
-    if(correctCount === maxPossible && maxPossible < maxMaxPossible){
-      // console.log("BK :/")
-      // window.unlockRandomSticker();
+      maxColorsPerSide[side] = {
+        score: maxCount,
+        colors: maxColors
+      }
     }
 
-    if ( correctCount === maxMaxPossible ) this.onSolved();
+    let score = 0;
+    for (const color in maxSidesPerColor) {
+      const maxSides = maxSidesPerColor[color];
+      if (maxSides.sides.length !== 1) {
+        continue;
+      }
 
+      const side = maxSides.sides[0];
+      const maxColors = maxColorsPerSide[side];
+      if (maxColors.colors.length === 1 && maxColors.colors[0] === color) {
+        score += maxSides.score;
+      }
+    }
+    window.highScore = Math.max(window.highScore, score);
+    this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
+    this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
+
+    if (isSolved) {
+      this.onSolved();
+      return;
+    }
+
+    window.submitScore(score);
   }
 
 }
@@ -2133,6 +2182,7 @@ class Transition {
     };
 
     this.activeTransitions = 0;
+    this.correctnessDisplayDone = 0;
 
   }
 
@@ -2148,6 +2198,8 @@ class Transition {
 
     this.tweens.buttons = {};
     this.tweens.timer = [];
+    this.tweens.correctness = [];
+    this.tweens.correctness2 = [];
     this.tweens.title = [];
     this.tweens.best = [];
     this.tweens.complete = [];
@@ -2542,13 +2594,41 @@ class Transition {
 
     timer.style.opacity = 1;
 
-    const correctness = this.game.dom.texts.correctness;
-    correctness.style.opacity = show ? 1 : 0;
-    const correctness2 = this.game.dom.texts.correctness2;
-    correctness2.style.opacity = show ? 1 : 0;
-
     setTimeout( () => this.activeTransitions--, this.durations.timer );
 
+  }
+
+  correctness(show, onAnimationDone = null) {
+    this.activeTransitions+=1;
+
+    const correctness = this.game.dom.texts.correctness;
+    const correctness2 = this.game.dom.texts.correctness2;
+
+    correctness.style.opacity = 0;
+    correctness2.style.opacity = 0;
+
+    this.splitLetters( correctness );
+    this.splitLetters( correctness2 );
+    const correctnessLetters = correctness.querySelectorAll( 'i' );
+    const correctness2Letters = correctness2.querySelectorAll( 'i' );
+    this.flipLetters( 'correctness', correctnessLetters, show );
+    this.flipLetters( 'correctness2', correctness2Letters, show );
+    correctness.style.opacity = 1;
+    correctness2.style.opacity = 1;
+    setTimeout( () => {
+      this.activeTransitions--;
+      this.correctnessDisplayDone += show ? 1 : -1;
+      if (onAnimationDone !== null && (show && this.correctnessDisplayDone === 2) || (!show && this.correctnessDisplayDone === 0)) {
+        onAnimationDone();
+      }
+    }, this.durations.correctness );
+    setTimeout( () => {
+      this.activeTransitions--;
+      this.correctnessDisplayDone += show ? 1 : -1;
+      if (onAnimationDone !== null && (show && this.correctnessDisplayDone === 2) || (!show && this.correctnessDisplayDone === 0)) {
+        onAnimationDone();
+      }
+    }, this.durations.correctness2 );
   }
 
   splitLetters( element ) {
@@ -2591,7 +2671,6 @@ class Transition {
       } );
 
     } );
-
     this.durations[ type ] = ( letters.length - 1 ) * 50 + ( show ? 800 : 400 );
 
   }
@@ -3290,17 +3369,6 @@ class Storage {
 
     this.game = game;
 
-    const userVersion = localStorage.getItem( 'theCube_version' );
-
-    if ( ! userVersion || userVersion !== window.gameVersion ) {
-
-      this.clearGame();
-      this.clearPreferences();
-      this.migrateScores();
-      localStorage.setItem( 'theCube_version', window.gameVersion );
-
-    }
-
     document.addEventListener('keydown', (event) => {
       if (this.game.state === STATE.Stats) {
         if (event.key === 'Delete') {
@@ -3319,61 +3387,83 @@ class Storage {
   }
 
   loadGame() {
-
-    try {
-
-      const gameInProgress = localStorage.getItem( 'theCube_playing' ) === 'true';
-
-      if ( ! gameInProgress ) throw new Error();
-
-      const gameCubeData = JSON.parse( localStorage.getItem( 'theCube_savedState' ) );
-      const gameTime = parseInt( localStorage.getItem( 'theCube_time' ) );
-
-      if ( ! gameCubeData || gameTime === null ) throw new Error();
-      if ( gameCubeData.size !== this.game.cube.sizeGenerated ) throw new Error();
-
-      this.game.cube.loadFromData( gameCubeData );
-
-      this.game.timer.deltaTime = gameTime;
-
-      this.game.saved = true;
-
-    } catch( e ) {
-
-      this.game.saved = false;
-
+    this.game.saved = false;
+    const rawSave = localStorage.getItem(this.game.apId);
+    if (rawSave === null) {
+      return;
     }
 
+    const save = JSON.parse(rawSave);
+
+    switch (save.save_version) {
+      case 1:
+        this.#loadGameV1(save);
+        break;
+    }
+  }
+
+  #loadGameV1(save) {
+    const gameCubeData = save.saved_state;
+    const gameTime = save.time;
+
+    if (save.seed !== this.game.seed
+        || save.apworld_version !== window.version
+        || !gameCubeData
+        || gameTime === null
+        || gameCubeData.size !== this.game.cube.sizeGenerated
+    ) {
+      return;
+    }
+
+    this.game.cube.loadFromData( gameCubeData );
+    this.game.controls.edges.rotation.setFromVector3(save.cube_rotation);
+    this.game.cube.object.rotation.copy( this.game.controls.edges.rotation );
+
+    this.game.timer.deltaTime = gameTime;
+
+    this.game.saved = true;
   }
 
   saveGame() {
+    if (!this.game.apId) {
+      return;
+    }
 
-    const gameInProgress = true;
-    const gameCubeData = { names: [], positions: [], rotations: [] };
+    const gameCubeData = {
+      names: [],
+      positions: [],
+      rotations: []
+    };
     const gameTime = this.game.timer.deltaTime;
 
     gameCubeData.size = this.game.cube.sizeGenerated;
 
     this.game.cube.pieces.forEach( piece => {
-
       gameCubeData.names.push( piece.name );
       gameCubeData.positions.push( piece.position );
       gameCubeData.rotations.push( piece.rotation.toVector3() );
 
     } );
 
-    localStorage.setItem( 'theCube_playing', gameInProgress );
-    localStorage.setItem( 'theCube_savedState', JSON.stringify( gameCubeData ) );
-    localStorage.setItem( 'theCube_time', gameTime );
-
+    gameCubeData.marks = Object.fromEntries(
+      this.game.cube.edges
+        .filter(edge => edge.userData.mark !== null)
+        .map(edge => [edge.name, edge.userData.mark])
+    );
+    
+    const save = {
+      saved_state: gameCubeData,
+      time: gameTime,
+      seed: this.game.seed,
+      apworld_version: window.version,
+      cube_rotation: this.game.controls.edges.rotation.toVector3(),
+      save_version: 1
+    }
+    localStorage.setItem(this.game.apId, JSON.stringify(save));
   }
 
   clearGame() {
-
-    localStorage.removeItem( 'theCube_playing' );
-    localStorage.removeItem( 'theCube_savedState' );
-    localStorage.removeItem( 'theCube_time' );
-
+    localStorage.removeItem( this.game.apId );
   }
 
   loadScores() {
@@ -3553,8 +3643,6 @@ class Themes {
     };
 
     this.colors = JSON.parse( JSON.stringify( this.defaults ) );
-    console.log(this.colors);
-
   }
 
   getColors() {
@@ -3929,6 +4017,10 @@ const Icons = new IconsConverter( {
       viewbox: '0 0 448 512',
       content: '<path fill="currentColor" d="M432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16zM53.2 467a48 48 0 0 0 47.9 45h245.8a48 48 0 0 0 47.9-45L416 128H32z" />',
     },
+    loading: {
+      viewbox: '0 0 16 16',
+      content: '<path fill="currentColor" d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7zM1 12a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2z"/>'
+    }
   },
 
   convert: true,
@@ -4021,8 +4113,9 @@ class Game {
 /**
  * @param {number} size Dimensions of the cube
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation) {
+  constructor(size, sidePermutation, seed = null, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4075,6 +4168,8 @@ class Game {
     this.saved = false;
 
     this.storage.init(size);
+    this.apId = apId;
+    this.seed = seed;
     this.preferences.init();
     this.cube.init();
     this.transition.init();
@@ -4185,6 +4280,12 @@ class Game {
     this.dom.buttons.stats.onclick = event => this.stats( SHOW );
 
     this.controls.onSolved = () => {
+      // Reveal the solved cube
+      window.game.cube.edges.forEach( edge => {
+        edge.userData.locked = false;
+      } );
+      window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
+      this.storage.clearGame();
       this.complete( SHOW );
       window.sendGoal();
     };
@@ -4202,7 +4303,6 @@ class Game {
         this.newGame = true;
 
       }
-
       const duration = this.saved ? 0 :
         this.scrambler.converted.length * ( this.controls.flipSpeeds[0] + 10 );
 
@@ -4218,15 +4318,12 @@ class Game {
 
         this.transition.timer( SHOW );
         this.transition.buttons( BUTTONS.Playing, BUTTONS.None );
-
       }, this.transition.durations.zoom - 1000 );
 
       setTimeout( () => {
-
-        this.controls.enable();
         if ( ! this.newGame ) this.timer.start( true );
         this.controls.checkIsSolved();
-
+        this.transition.correctness(SHOW, () => this.controls.enable());
       }, this.transition.durations.zoom );
 
     } else {
@@ -4240,6 +4337,7 @@ class Game {
       this.controls.disable();
       if ( ! this.newGame ) this.timer.stop();
       this.transition.timer( HIDE );
+      this.transition.correctness(HIDE);
 
       setTimeout( () => this.transition.title( SHOW ), this.transition.durations.zoom - 1000 );
 
@@ -4354,10 +4452,11 @@ class Game {
       this.transition.buttons( BUTTONS.Menu, BUTTONS.None );
 
       this.transition.stats( HIDE );
-
-      setTimeout( () => this.transition.cube( SHOW ), 500 );
-      setTimeout( () => this.transition.title( SHOW ), 1200 );
-
+      document.getElementById("login-container").style.display = "flex";
+      document.getElementById("ui").style.display = "none";
+      document.getElementsByClassName("ui__game").item(0).innerHTML = '';
+      document.getElementsByClassName("text--correctness").item(0).innerHTML = '';
+      document.getElementsByClassName("text--correctness2").item(0).innerHTML = '';
     }
 
   }
@@ -4431,13 +4530,11 @@ function unlockSticker(sticker){
 
     const mainAxis = window.game.controls.getMainAxis( position );
     const mainSign = position.multiplyScalar( 2 ).round()[ mainAxis ] < 1 ? '-' : '+';
-
     sides[ mainAxis + mainSign ].push(edge);
 
   } ); 
-
-  const wantedSide = sticker[0];
-  const wantedNumber = sticker[1] + '';
+  const stickerName = sticker[0];
+  const sideIndex = sticker[1] - 1;
 
   const sideKeys = Object.keys(sides);
   let changed = false;
@@ -4446,9 +4543,8 @@ function unlockSticker(sticker){
     if (sides[side].length === 0) continue;
     for (let j = 0; j < sides[side].length; j++) {
       const sticker = sides[side][j];
-      if (sticker.name.charAt(0) === wantedSide && sticker.name.slice(4) === wantedNumber) {
-        // Change this sticker to the most common color on this side
-        sticker.name = sticker.name.charAt(0) + 'O' + 'X' + sticker.name.slice(3);
+      if (sticker.userData.color === stickerName && sticker.userData.colorIndex === sideIndex) {
+        sticker.userData.locked = false;
         changed = true;
         break;
       }
@@ -4464,10 +4560,8 @@ function unlockSticker(sticker){
 }
 
 function submitScore(counts){
-  if(window.doneScramble){
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    console.log("Submitting score: ", counts, total);
-    window.findAndDetermineChecks(total);
+  if (this.game.state === STATE.Playing) {
+    window.findAndDetermineChecks(counts);
   }
 }
 
@@ -4477,10 +4571,12 @@ function submitScore(counts){
  * @param {number} size Dimensions of the cube
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  */
-function startGame(size, sidePermutation) {
+function startGame(size, sidePermutation, seed, apId) {
   console.log("Starting game!");
-  window.doneScramble = false;
-  window.game = new Game(size, sidePermutation);
+  window.highScore = 0;
+  window.lastCorrectSent = 0;
+  window.game = new Game(size, sidePermutation, seed, apId);
+  window.game.storage.loadGame();
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {
@@ -4490,6 +4586,9 @@ function startGame(size, sidePermutation) {
   // Add an event listener for right-click (contextmenu) on the cube area
   window.game.dom.game.addEventListener('contextmenu', function(event) {
     event.preventDefault();
+    if (window.game.state !== STATE.Playing) {
+      return;
+    }
     // Get mouse position
     const clickEvent = event.touches
       ? (event.touches[0] || event.changedTouches[0])
@@ -4500,21 +4599,14 @@ function startGame(size, sidePermutation) {
     let edgeIntersect = window.game.controls.getIntersect(clickPosition, window.game.cube.edges, true);
     if (edgeIntersect !== false) {
       // change the third letter of the name to F
-      const sides = ['X', 'F', 'R', 'B', 'L', 'U', 'D'];
-      const currentIndex = sides.indexOf(edgeIntersect.object.name.charAt(2));
+      const sides = [null, 'F', 'R', 'B', 'L', 'U', 'D'];
+      const currentIndex = sides.indexOf(edgeIntersect.object.userData.mark);
       const nextIndex = (currentIndex + 1) % sides.length;
-      edgeIntersect.object.name = edgeIntersect.object.name.slice(0, 2) + sides[nextIndex] + edgeIntersect.object.name.slice(3);
-      // call this.game.cube.updateColors(this.game.themes.getColors());
+      edgeIntersect.object.userData.mark = sides[nextIndex];
       window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
+      window.game.storage.saveGame();
       return;
     }
-
-    // // If not a sticker, try to intersect with cube pieces
-    // let pieceIntersect = window.game.controls.getIntersect(clickPosition, window.game.cube.cubes, true);
-    // if (pieceIntersect !== false) {
-    //   console.log('Piece name:', pieceIntersect.object.name);
-    //   return;
-    // }
 
     // If nothing found
     console.log('No square found at this position.');

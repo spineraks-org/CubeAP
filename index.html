@@ -2,7 +2,7 @@
 <html lang="en" >
 <head>
   <meta charset="UTF-8">
-  <title>The Cube</title>
+  <title>Twisty Cube</title>
   <meta name="viewport" content="width=device-width,height=device-height,user-scalable=no,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0"><link rel="stylesheet" href="./style.css">
 
 </head>
@@ -20,7 +20,7 @@
 
 <!-- Login screen -->
 <div class="login-container" id="login-container" style="font-size: 14px;">
-  <h2 class="login-heading" style="font-size: 5em;">🧊 Cube AP 🧊</h2>
+  <h2 class="login-heading" style="font-size: 5em;">🧊 Twisty Cube 🧊</h2>
   <div style="width: 100%; font-family: Verdana, Geneva, sans-serif; font-size: 14px;"></div>
         <hr style="border: 5px solid #555599; margin: 8px 0; width: 100px;">
       <div style="margin-top: 5px; font-size: 0.9em; color: white; padding: 10px; text-align: center; border-radius: 10px;">
@@ -97,7 +97,6 @@
         Credits: original game by<br>
         <a href="https://codepen.io/bsehovac/pen/EMyWVv" target="_blank" rel="noopener noreferrer" style="color: #b3e5fc; text-decoration: underline;">codepen.io/bsehovac/pen/EMyWVv</a>
       </div>
-  </div>
 </div>
 
 <script>
@@ -207,10 +206,10 @@
 
 
 
-
-
-
-
+<div id="loading-screen" style="display: none;">
+  <h1>Connecting...</h1>
+  <div class="loading-icon"><icon loading></icon></div>
+</div>
 
 
 
@@ -254,16 +253,14 @@
       </script>
     </h1>
     <div class="text text--note">
-      Double tap to start
+      Double tap to start<br> and reveal the stickers
     </div>
     <div class="text text--timer">
       0:00
     </div>
     <div class="text text--correctness">
-      XX
     </div>
     <div class="text text--correctness2">
-      
     </div>
     <div class="text text--complete">
       <span>Complete!</span>
@@ -334,6 +331,11 @@
     <button class="btn btn--br btn--reset">
       <icon reset></icon>
     </button>
+  </div>
+
+  <div class="ui__version">
+    <div id="version">
+    </div>
   </div>
 
 </div>
