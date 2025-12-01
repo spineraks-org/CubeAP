@@ -1342,6 +1342,7 @@ class Controls {
     this.scramble = null;
     this.state = STILL;
     this.enabled = false;
+    this.deathlinkMoves = 0;
 
     this.initDraggable();
 
@@ -1352,7 +1353,7 @@ class Controls {
 
   //AP
   undo_action(){
-    if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
+    if (this.state !== STILL || !this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
     const lastMove = this.game.moveStack.pop();
     if (!lastMove) {
       return;
@@ -1404,8 +1405,7 @@ class Controls {
   }
 
   doDeathLink(source, cause) {
-    this.game.moveStack.clear();
-    const amount_of_moves = document.getElementById('deathlink-scramble').value;
+    const amount_of_moves = parseInt(document.getElementById('deathlink-scramble').value);
 
     if(document.getElementById('show-deathlinks').checked){
       const note = this.game.dom.texts.note;
@@ -1421,17 +1421,33 @@ class Controls {
         note.innerText = 'Double tap to start<br> and show colors';
       }, 3000 + amount_of_moves * 500);
     }
+    if (amount_of_moves === 0) {
+      return;
+    }
 
-    for(let i = 0; i < amount_of_moves; i++){
-      setTimeout(() => {
-        if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
+    const hasDeathlinkInProgress = this.deathlinkMoves > 0;
+    this.deathlinkMoves += amount_of_moves;
+    const applyDeathlinkMove = () => {
+      if (this.state === STILL && this.enabled && this.scramble === null)
+      {
         const faces = 'UDLRFB';
         const move = faces[ Math.floor( Math.random() * faces.length ) ];
         this.moveSide(move);
-      }, i * 500);
+      }
+      this.deathlinkMoves--;
+      console.log(this.deathlinkMoves);
+      if (this.deathlinkMoves === 0) {
+        setTimeout(() => {
+          this.game.moveStack.clear();
+        }, 500)
+      }
+      else {
+        setTimeout(applyDeathlinkMove, 500);
+      }
+    };
+    if (!hasDeathlinkInProgress) {
+      setTimeout(applyDeathlinkMove);
     }
-
-
   }
   
   addDeathLinkListener() {
@@ -1440,14 +1456,13 @@ class Controls {
 
   addAdditionalKeyListener() {
     document.addEventListener('keydown', event => {
-      if (this.state !== STILL || !this.enabled || this.scramble !== null) return;
-
       let eventKey = event.key;
 
-      // // Use this to rotate the layer when Q is pressed
-      // if (['P'].includes(eventKey)) {
-      //   this.doDeathLink("Spineraks", "made too many games");
-      // }
+      // Use this to deathlink the layer when P is pressed
+      /*if (['P'].includes(eventKey.toUpperCase())) {
+       this.doDeathLink("Spineraks", "made too many games");
+      }*/
+      if (this.state !== STILL || !this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
 
       // Use this to rotate the layer when Q is pressed
       if (['L', 'R', 'U', 'D', 'F', 'B'].includes(eventKey.toUpperCase())) {
@@ -1517,7 +1532,7 @@ class Controls {
     this.draggable.onDragStart = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === PREPARING || this.state === ROTATING ) return;
+      if ( this.state === PREPARING || this.state === ROTATING || this.deathlinkMoves > 0 ) return;
 
       this.gettingDrag = this.state === ANIMATING;
 
@@ -1567,7 +1582,7 @@ class Controls {
     this.draggable.onDragMove = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === STILL || ( this.state === ANIMATING && this.gettingDrag === false ) ) return;
+      if ( this.state === STILL || ( this.state === ANIMATING && this.gettingDrag === false ) || this.deathlinkMoves > 0 ) return;
 
       const planeIntersect = this.getIntersect( position.current, this.helper, false );
       if ( planeIntersect === false ) return;
@@ -1632,7 +1647,7 @@ class Controls {
 
     this.draggable.onDragEnd = position => {
 
-      if ( this.scramble !== null ) return;
+      if ( this.scramble !== null || this.deathlinkMoves > 0 ) return;
       if ( this.state !== ROTATING ) {
 
         this.gettingDrag = false;
@@ -2063,13 +2078,12 @@ class Controls {
     window.highScore = Math.max(window.highScore, score);
     this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
     this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
-
     if (isSolved) {
       this.onSolved();
       return;
     }
 
-    window.submitScore(score);
+    window.submitScore(window.highScore);
   }
 
 }
@@ -3421,7 +3435,6 @@ class Storage {
     this.game.cube.object.rotation.copy( this.game.controls.edges.rotation );
 
     window.highScore = save.high_score;
-    window.submitScore(save.high_score);
 
     this.game.timer.deltaTime = gameTime;
 
@@ -4584,6 +4597,7 @@ function startGame(size, sidePermutation, seed, apId) {
   console.log("Starting game!");
   window.highScore = 0;
   window.lastCorrectSent = 0;
+  window.deathlinksInProgress = false;
   window.game = new Game(size, sidePermutation, seed, apId);
 
   // Disable the standard right-click context menu on the whole document
