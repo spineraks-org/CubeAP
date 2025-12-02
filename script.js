@@ -1206,7 +1206,6 @@ class Draggable {
 
         window.addEventListener( ( this.touch ) ? 'touchmove' : 'mousemove', this.drag.move, false );
         window.addEventListener( ( this.touch ) ? 'touchend' : 'mouseup', this.drag.end, false );
-
       },
 
       move: ( event ) => {
@@ -1269,6 +1268,10 @@ class Draggable {
 
     return this;
 
+  }
+
+  cancelDrag() {
+    window.dispatchEvent(new MouseEvent(( this.touch ) ? 'touchend' : 'mouseup'));
   }
 
   getPositionCurrent( event ) {
@@ -1371,40 +1374,44 @@ class Controls {
   }
 
   moveSide(eventKey){
-    this.state = ANIMATING;
-    const moveDescriptor = eventKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
-    const move = this.game.scrambler.convertMove(moveDescriptor);
+    return new Promise((resolve) => {
+      this.state = ANIMATING;
+      const moveDescriptor = eventKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
+      const move = this.game.scrambler.convertMove(moveDescriptor);
 
-    // Get the layer to rotate
-    // Always get the layer corresponding to the global axis, not the local cube orientation
-    // Find the world position of the layer by transforming the intended position by the cube's rotation
-    // Use the inverse quaternion to transform the move position to global coordinates
-    const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
-    const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
-    // Clamp values to [-1, 1]
-    globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
-    globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
-    globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
-    
-    const layer = this.getLayer(globalPosition);
-    
-    // Set the axis to rotate
-    this.flipAxis = new THREE.Vector3();
-    
-    this.flipAxis[move.axis] = 1;
-    this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
-    // Select the layer
-    this.selectLayer(layer);
-    // Rotate the layer
-    this.rotateLayer(move.angle, false, rotatedLayer => {
-      this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
-      this.game.storage.saveGame();
-      this.state = STILL;
-      this.checkIsSolved();
-    });
+      // Get the layer to rotate
+      // Always get the layer corresponding to the global axis, not the local cube orientation
+      // Find the world position of the layer by transforming the intended position by the cube's rotation
+      // Use the inverse quaternion to transform the move position to global coordinates
+      const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
+      const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
+      // Clamp values to [-1, 1]
+      globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
+      globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
+      globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
+      
+      const layer = this.getLayer(globalPosition);
+      
+      // Set the axis to rotate
+      this.flipAxis = new THREE.Vector3();
+      
+      this.flipAxis[move.axis] = 1;
+      this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
+      // Select the layer
+      this.selectLayer(layer);
+      // Rotate the layer
+      this.rotateLayer(move.angle, false, rotatedLayer => {
+        this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
+        this.game.storage.saveGame();
+        this.state = STILL;
+        this.checkIsSolved();
+        resolve();
+      });
+    })
   }
 
-  doDeathLink(source, cause) {
+  async doDeathLink(source, cause) {
+    window.dispatchEvent(new MouseEvent("mouseup"));
     const amount_of_moves = parseInt(document.getElementById('deathlink-scramble').value);
 
     if(document.getElementById('show-deathlinks').checked){
@@ -1427,26 +1434,22 @@ class Controls {
 
     const hasDeathlinkInProgress = this.deathlinkMoves > 0;
     this.deathlinkMoves += amount_of_moves;
-    const applyDeathlinkMove = () => {
-      if (this.state === STILL && this.enabled && this.scramble === null)
-      {
-        const faces = 'UDLRFB';
-        const move = faces[ Math.floor( Math.random() * faces.length ) ];
-        this.moveSide(move);
+    const applyDeathlinkMove = async () => {
+      while(this.state !== STILL || !this.enabled || this.scramble !== null){
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
+
+      const faces = 'UDLRFB';
+      const move = faces[ Math.floor( Math.random() * faces.length ) ];
+      await this.moveSide(move);
       this.deathlinkMoves--;
-      console.log(this.deathlinkMoves);
-      if (this.deathlinkMoves === 0) {
-        setTimeout(() => {
-          this.game.moveStack.clear();
-        }, 500)
-      }
-      else {
-        setTimeout(applyDeathlinkMove, 500);
-      }
     };
+
     if (!hasDeathlinkInProgress) {
-      setTimeout(applyDeathlinkMove);
+      while (this.deathlinkMoves > 0) {
+        await applyDeathlinkMove();
+      }
+      this.game.moveStack.clear();
     }
   }
   
