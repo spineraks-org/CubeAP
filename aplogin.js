@@ -40,27 +40,38 @@ function getCubeSize(slotData) {
 }
 
 /**
- * Extract the side permutations from the slot data
+ * Extract the side permutations from the slot data.
+ *
+ * Returns null if the layout isn't randomized
  *
  * @param {Object} slotData
- * @returns {Object.<string, string>}
+ * @returns {Object.<string, string>|null}
  */
 function getSidePermutations(slotData) {
     if (window.version === '0.0.1') {
-        return {
-            'U': 'U',
-            'D': 'D',
-            'L': 'L',
-            'R': 'R',
-            'F': 'F',
-            'B': 'B'
-        }
+        return null;
+    }
+
+    if (slotData.color_permutation === null) {
+        return null;
     }
 
     let sidePermutations = {};
+    // This is bugged for version 0.0.2
+    // If the randomized layout is exactly the default one, it will be considered non-randomized
+    // Considering this is temporary and only 1/720, it's probably fine.
+    const isLayoutRandomized = false;
     for (const key in slotData.color_permutation) {
+        if (key !== slotData.color_permutation[key]) {
+            isLayoutRandomized = true;
+        }
         sidePermutations[colorToSide[key]] = colorToSide[slotData.color_permutation[key]]
     }
+
+    if (window.version === '0.0.2') {
+        return isLayoutRandomized ? sidePermutations : null;
+    }
+
     return sidePermutations;
 }
 

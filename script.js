@@ -675,6 +675,9 @@ class Cube {
 
   constructor( game ) {
 
+    /**
+     * @type Game
+     */
     this.game = game;
     this.size = 3;
 
@@ -915,7 +918,7 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      if ((this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
+      if ((!this.game.isLayoutRandomized || this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
         const colorCode = sidePermutation[edge.userData.color];
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
@@ -4137,7 +4140,7 @@ class Game {
 
 /**
  * @param {number} size Dimensions of the cube
- * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {Object.<string, string>|null} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  * @param {string|null} apId ID for the AP session
  */
   constructor(size, sidePermutation, seed = null, apId = null) {
@@ -4184,7 +4187,15 @@ class Game {
     /**
      * @type {Object.<string, string>}
      */
-    this.sidePermutation = sidePermutation;
+    this.sidePermutation = sidePermutation ?? {
+      'U': 'U',
+      'D': 'D',
+      'L': 'L',
+      'R': 'R',
+      'F': 'F',
+      'B': 'B'
+    };
+    this.isLayoutRandomized = sidePermutation !== null;
 
     this.initActions();
 

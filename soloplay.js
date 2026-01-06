@@ -25,19 +25,13 @@ if(getUrlParameter('go') == 'solo'){
 
 function startSolo(size = 2){
     console.log("Starting solo game", size);
-    const sidePermutations = {
-        'U': 'U',
-        'D': 'D',
-        'L': 'L',
-        'R': 'R',
-        'F': 'F',
-        'B': 'B'
-    };
+    const sidePermutations = null;
 
     const layoutCheckbox = document.getElementsByName('randomize_layout').item(0);
     if (layoutCheckbox.checked) {
-        const sideValues = Object.values(sidePermutations);
-        for (let key in sidePermutations) {
+        const sideValues = ['U', 'D', 'L', 'R', 'F', 'B'];
+        sidePermutations = {};
+        for (let key of sideValues.slice()) {
             sidePermutations[key] = sideValues.splice(Math.floor(Math.random() * sideValues.length), 1)[0];
         }
     }
