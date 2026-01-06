@@ -75,6 +75,20 @@ function getSidePermutations(slotData) {
     return sidePermutations;
 }
 
+/**
+ * Extract the minimum number of stickers to goal when the cube is solved from the slot data.
+ *
+ * @param {Object} slotData
+ * @returns {number}
+ */
+function getNumberStickersToCompleteGoalOnSolve(slotData) {
+    const [major, minor, hotfix] = window.version.split('.').map(parseInt);
+    if (major === 0 && minor === 0 && hotfix <= 2) {
+        return 6*slotData.size_of_cube*slotData.size_of_cube;
+    }
+    return slotData.min_stickers_to_goal_on_solve;
+}
+
 function getSeed(slotData) {
     return slotData.seed_name;
 }
@@ -186,7 +200,8 @@ function startAP(){
         const size_of_cube = getCubeSize(packet.slot_data);
         const sidePermutations = getSidePermutations(packet.slot_data);
         const seed = getSeed(packet.slot_data);
-        window.startGame(size_of_cube, sidePermutations, seed, `$Cube_${seed}_${networkSlot.name}$`);
+        const numberStickersToGoalOnSolve = getNumberStickersToCompleteGoalOnSolve(packet.slot_data)
+        window.startGame(size_of_cube, sidePermutations, numberStickersToGoalOnSolve, seed, `$Cube_${seed}_${networkSlot.name}$`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {

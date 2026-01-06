@@ -2084,7 +2084,7 @@ class Controls {
     window.highScore = Math.max(window.highScore, score);
     this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
     this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
-    if (isSolved) {
+    if (isSolved && this.game.numberStickersToGoalOnSolve <= score) {
       this.onSolved();
       return;
     }
@@ -4143,7 +4143,7 @@ class Game {
  * @param {Object.<string, string>|null} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation, seed = null, apId = null) {
+  constructor(size, sidePermutation, numberStickersToGoalOnSolve, seed = null, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4196,6 +4196,7 @@ class Game {
       'B': 'B'
     };
     this.isLayoutRandomized = sidePermutation !== null;
+    this.numberStickersToGoalOnSolve = numberStickersToGoalOnSolve;
 
     this.initActions();
 
@@ -4606,13 +4607,16 @@ function submitScore(counts){
  *
  * @param {number} size Dimensions of the cube
  * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {number} numberStickersToGoalOnSolve Number of stickers required to complete the goal when the cube is solved
+ * @param {number|undefined} seed Randomizer seed
+ * @param {string|undefined} apId Identifier for the AP
  */
-function startGame(size, sidePermutation, seed, apId) {
+function startGame(size, sidePermutation, numberStickersToGoalOnSolve, seed, apId) {
   console.log("Starting game!");
   window.highScore = 0;
   window.lastCorrectSent = 0;
   window.deathlinksInProgress = false;
-  window.game = new Game(size, sidePermutation, seed, apId);
+  window.game = new Game(size, sidePermutation, numberStickersToGoalOnSolve, seed, apId);
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {

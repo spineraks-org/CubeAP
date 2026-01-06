@@ -49,13 +49,13 @@ function startSolo(size = 2){
     document.getElementById("login-container").style.display = "none";
     document.getElementById("ui").style.display = "block";
 
-    var size = size || parseInt(getUrlParameter('size')) || 2;
+    var size = parseInt(size) || parseInt(getUrlParameter('size')) || 2;
     var stickersUnlocked = 0;
     var lockedStickers = [];
 
     function connectToServer(firsttime = true) {
         
-        window.startGame(parseInt(size), sidePermutations);
+        window.startGame(size, sidePermutations, size*size*6);
 
         const colors = ['L', 'R', 'U', 'D', 'F', 'B'];
         for(let i=1; i<=size*size; i++){
