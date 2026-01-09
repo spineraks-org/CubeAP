@@ -86,7 +86,7 @@ function getNumberStickersToCompleteGoalOnSolve(slotData) {
     if (major === 0 && minor === 0 && hotfix <= 2) {
         return 6*slotData.size_of_cube*slotData.size_of_cube;
     }
-    return slotData.min_stickers_to_goal_on_solve;
+    return slotData.minimum_stickers_unlocked_to_goal_when_solved;
 }
 
 function getSeed(slotData) {
