@@ -2084,12 +2084,15 @@ class Controls {
     window.highScore = Math.max(window.highScore, score);
     this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
     this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
-    if (isSolved && this.game.numberStickersToGoalOnSolve <= score) {
+    if (isSolved && this.game.numberStickersToGoalOnSolve <= score && this.state === STATE.Playing) {
       this.onSolved();
-      return;
     }
 
     window.submitScore(window.highScore);
+
+    if (window.highScore === this.totalStickers) {
+      this.game.storage.clearGame();
+    }
   }
 
 }
@@ -3481,7 +3484,8 @@ class Storage {
       apworld_version: window.version,
       cube_rotation: this.game.controls.edges.rotation.toVector3(),
       save_version: 1,
-      high_score: window.highScore
+      high_score: window.highScore,
+      saved_at: Date.now()
     }
     localStorage.setItem(this.game.apId, JSON.stringify(save));
   }
@@ -4140,10 +4144,12 @@ class Game {
 
 /**
  * @param {number} size Dimensions of the cube
+ * @param {number} numberStickersToGoalOnSolve
+ * @param {number} totalStickers
  * @param {Object.<string, string>|null} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
  * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation, numberStickersToGoalOnSolve, seed = null, apId = null) {
+  constructor(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers, seed = null, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4197,6 +4203,7 @@ class Game {
     };
     this.isLayoutRandomized = sidePermutation !== null;
     this.numberStickersToGoalOnSolve = numberStickersToGoalOnSolve;
+    this.totalStickers = totalStickers
 
     this.initActions();
 
@@ -4322,7 +4329,6 @@ class Game {
         edge.userData.locked = false;
       } );
       window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
-      this.storage.clearGame();
       this.complete( SHOW );
       window.sendGoal();
     };
@@ -4597,7 +4603,7 @@ function unlockSticker(sticker){
 }
 
 function submitScore(counts){
-  if (this.game.state === STATE.Playing) {
+  if (this.game.state === STATE.Playing || this.game.state === STATE.Complete) {
     window.findAndDetermineChecks(counts);
   }
 }
@@ -4611,12 +4617,12 @@ function submitScore(counts){
  * @param {number|undefined} seed Randomizer seed
  * @param {string|undefined} apId Identifier for the AP
  */
-function startGame(size, sidePermutation, numberStickersToGoalOnSolve, seed, apId) {
+function startGame(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers, seed, apId) {
   console.log("Starting game!");
   window.highScore = 0;
   window.lastCorrectSent = 0;
   window.deathlinksInProgress = false;
-  window.game = new Game(size, sidePermutation, numberStickersToGoalOnSolve, seed, apId);
+  window.game = new Game(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers, seed, apId);
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {

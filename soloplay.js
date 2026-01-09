@@ -55,7 +55,7 @@ function startSolo(size = 2){
 
     function connectToServer(firsttime = true) {
         
-        window.startGame(size, sidePermutations, size*size*6);
+        window.startGame(size, sidePermutations, size*size*6, size*size*6);
 
         const colors = ['L', 'R', 'U', 'D', 'F', 'B'];
         for(let i=1; i<=size*size; i++){

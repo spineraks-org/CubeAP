@@ -84,9 +84,19 @@ function getSidePermutations(slotData) {
 function getNumberStickersToCompleteGoalOnSolve(slotData) {
     const [major, minor, hotfix] = window.version.split('.').map(parseInt);
     if (major === 0 && minor === 0 && hotfix <= 2) {
-        return 6*slotData.size_of_cube*slotData.size_of_cube;
+        return getTotalStickers(slotData);
     }
     return slotData.minimum_stickers_unlocked_to_goal_when_solved;
+}
+
+/**
+ * Get the total number of stickers
+ * 
+ * @param {object} slotData 
+ * @returns {number}
+ */
+function getTotalStickers(slotData) {
+    return 6*slotData.size_of_cube*slotData.size_of_cube;
 }
 
 function getSeed(slotData) {
@@ -201,7 +211,8 @@ function startAP(){
         const sidePermutations = getSidePermutations(packet.slot_data);
         const seed = getSeed(packet.slot_data);
         const numberStickersToGoalOnSolve = getNumberStickersToCompleteGoalOnSolve(packet.slot_data)
-        window.startGame(size_of_cube, sidePermutations, numberStickersToGoalOnSolve, seed, `$Cube_${seed}_${networkSlot.name}$`);
+        const totalStickers = getTotalStickers(packet.slot_data);
+        window.startGame(size_of_cube, sidePermutations, numberStickersToGoalOnSolve, totalStickers, seed, `$Cube_${seed}_${networkSlot.name}$`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {
