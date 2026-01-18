@@ -1355,6 +1355,7 @@ class Controls {
     this.addAdditionalKeyListener();
     this.addDeathLinkListener();
 
+    this.moveInProgress = Promise.resolve()
   }
 
   //AP
@@ -1368,7 +1369,7 @@ class Controls {
     const moveToApply = lastMove.inverse();
     this.flipAxis = moveToApply.axis;
     this.selectLayer(moveToApply.layer);
-    this.rotateLayer(moveToApply.angle, false, () => {
+    this.rotateLayer(moveToApply.angle, false, false, () => {
       // Do NOT add the move to the move stack - we're undoing it!
       this.game.storage.saveGame();
       this.state = STILL;
@@ -1376,41 +1377,43 @@ class Controls {
     });
   }
 
-  moveSide(eventKey){
-    return new Promise((resolve) => {
-      this.state = ANIMATING;
-      const moveDescriptor = eventKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
-      const move = this.game.scrambler.convertMove(moveDescriptor);
+  moveSide(eventKey, isKeyboardEvent){
+    this.moveInProgress = this.moveInProgress.then(() => {
+      return new Promise((resolve) => {
+        this.state = ANIMATING;
+        const moveDescriptor = eventKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
+        const move = this.game.scrambler.convertMove(moveDescriptor);
 
-      // Get the layer to rotate
-      // Always get the layer corresponding to the global axis, not the local cube orientation
-      // Find the world position of the layer by transforming the intended position by the cube's rotation
-      // Use the inverse quaternion to transform the move position to global coordinates
-      const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
-      const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
-      // Clamp values to [-1, 1]
-      globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
-      globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
-      globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
-      
-      const layer = this.getLayer(globalPosition);
-      
-      // Set the axis to rotate
-      this.flipAxis = new THREE.Vector3();
-      
-      this.flipAxis[move.axis] = 1;
-      this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
-      // Select the layer
-      this.selectLayer(layer);
-      // Rotate the layer
-      this.rotateLayer(move.angle, false, rotatedLayer => {
-        this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
-        this.game.storage.saveGame();
-        this.state = STILL;
-        this.checkIsSolved();
-        resolve();
+        // Get the layer to rotate
+        // Always get the layer corresponding to the global axis, not the local cube orientation
+        // Find the world position of the layer by transforming the intended position by the cube's rotation
+        // Use the inverse quaternion to transform the move position to global coordinates
+        const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
+        const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
+        // Clamp values to [-1, 1]
+        globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
+        globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
+        globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
+
+        const layer = this.getLayer(globalPosition);
+
+        // Set the axis to rotate
+        this.flipAxis = new THREE.Vector3();
+
+        this.flipAxis[move.axis] = 1;
+        this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
+        // Select the layer
+        this.selectLayer(layer);
+        // Rotate the layer
+        this.rotateLayer(move.angle, false, isKeyboardEvent, rotatedLayer => {
+          this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
+          this.game.storage.saveGame();
+          this.state = STILL;
+          this.checkIsSolved();
+          resolve();
+        });
       });
-    })
+    });
   }
 
   async doDeathLink(source, cause) {
@@ -1444,7 +1447,7 @@ class Controls {
 
       const faces = 'UDLRFB';
       const move = faces[ Math.floor( Math.random() * faces.length ) ];
-      await this.moveSide(move);
+      this.moveSide(move, false);
       this.deathlinkMoves--;
     };
 
@@ -1468,12 +1471,14 @@ class Controls {
       /*if (['P'].includes(eventKey.toUpperCase())) {
        this.doDeathLink("Spineraks", "made too many games");
       }*/
-      if (this.state !== STILL || !this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
+      if (!this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
 
       // Use this to rotate the layer when Q is pressed
       if (['L', 'R', 'U', 'D', 'F', 'B'].includes(eventKey.toUpperCase())) {
-        this.moveSide(eventKey);
+        this.moveSide(eventKey, true);
       }
+
+      if (this.state !== STILL) return;
 
       if (event.key === 'Backspace') {
         this.undo_action();
@@ -1675,7 +1680,7 @@ class Controls {
 
       if ( this.flipType === 'layer' ) {
 
-        this.rotateLayer( delta, false, rotatedLayer => {
+        this.rotateLayer( delta, false, false, rotatedLayer => {
           // If the angle is too small, it means no rotation was applied. We ignore it.
           // 360 degrees rotation would still be possible, even if they don't do anything.
           // This is probably preferable in terms of UX.
@@ -1710,13 +1715,14 @@ class Controls {
    * @param {number} rotation - Target angle of rotation.
    * This is used for the animation: this allows a layer to be in a partially turned position when its dragged with the mouse.
    * @param {boolean} scramble - True if the cube is being scrambled.
+   * @param {boolean} isKeyboardEvent - True if the rotation was triggered by a keyboard input
    * @param {onRotateCompleteCallback} callback - Callback to call once the animation is complete.
    */
-  rotateLayer( rotation, scramble, callback ) {
+  rotateLayer( rotation, scramble, isKeyboardEvent, callback ) {
     const config = scramble ? 0 : this.flipConfig;
 
     const easing = this.flipEasings[ config ];
-    const duration = this.flipSpeeds[ config ];
+    const duration = isKeyboardEvent ? this.flipSpeeds[ config ] / 3 : this.flipSpeeds[ config ];
     const bounce = ( config == 2 ) ? this.bounceCube() : ( () => {} );
 
     this.rotationTween = new Tween( {
