@@ -60,7 +60,7 @@ function getSidePermutations(slotData) {
     // This is bugged for version 0.0.2
     // If the randomized layout is exactly the default one, it will be considered non-randomized
     // Considering this is temporary and only 1/720, it's probably fine.
-    const isLayoutRandomized = false;
+    let isLayoutRandomized = false;
     for (const key in slotData.color_permutation) {
         if (key !== slotData.color_permutation[key]) {
             isLayoutRandomized = true;
