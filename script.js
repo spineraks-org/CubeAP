@@ -1313,6 +1313,7 @@ class Controls {
     this.game = game;
 
     this.flipConfig = 0;
+    this.controlStyle = 0;
 
     this.flipEasings = [ Easing.Power.Out( 3 ), Easing.Sine.Out(), Easing.Back.Out( 1.5 ) ];
     this.flipSpeeds = [ 125, 200, 300 ];
@@ -1376,10 +1377,9 @@ class Controls {
     });
   }
 
-  moveSide(eventKey){
+  moveSide(moveDescriptor){
     return new Promise((resolve) => {
       this.state = ANIMATING;
-      const moveDescriptor = eventKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
       const move = this.game.scrambler.convertMove(moveDescriptor);
 
       // Get the layer to rotate
@@ -1388,10 +1388,6 @@ class Controls {
       // Use the inverse quaternion to transform the move position to global coordinates
       const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
       const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
-      // Clamp values to [-1, 1]
-      globalPosition.x = Math.max(-1, Math.min(1, globalPosition.x));
-      globalPosition.y = Math.max(-1, Math.min(1, globalPosition.y));
-      globalPosition.z = Math.max(-1, Math.min(1, globalPosition.z));
       
       const layer = this.getLayer(globalPosition);
       
@@ -1470,49 +1466,73 @@ class Controls {
       }*/
       if (this.state !== STILL || !this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
 
-      // Use this to rotate the layer when Q is pressed
-      if (['L', 'R', 'U', 'D', 'F', 'B'].includes(eventKey.toUpperCase())) {
-        this.moveSide(eventKey);
-      }
 
       if (event.key === 'Backspace') {
         this.undo_action();
       }
 
+      let moveDescriptor = '';
+      let moveKey = eventKey.toUpperCase();
+      // Standard controls
+      if (this.controlStyle == 0) {
+        if (['L', 'R', 'U', 'D', 'F', 'B'].includes(moveKey)) {
+          moveDescriptor = moveKey + (eventKey === eventKey.toUpperCase() ? "'" : "");
+        }
+      } else if (this.controlStyle == 1) {
+        const keymap = { 
+          J: "U", F: "U'", S: "D", L: "D'", I: "R", K: "R'", D: "L", E: "L'", H: "F", G: "F'", W: "B", O: "B'",
+          T: "x", Y: "x", B: "x'", N: "x'", ";": "y", ":": "y", A: "y'", P: "z", Q: "z'",
+        };
+        if (moveKey in keymap){
+          moveDescriptor = keymap[moveKey];
+        }
+      }
+
       // Arrow keys: rotate the cube as a whole
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
-        this.state = ANIMATING;
-        let axis, angle;
         switch (event.key) {
           case 'ArrowLeft':
-            axis = 'y'; angle = -Math.PI / 2; 
+            moveDescriptor = "y";
             break;
           case 'ArrowRight':
-            axis = 'y'; angle = Math.PI / 2; 
+            moveDescriptor = "y'";
             break;
           case 'ArrowUp':
-            axis = 'x'; angle = -Math.PI / 2; 
             if (event.shiftKey) {
-              axis = 'z';
-              angle *= -1;
+              moveDescriptor = "z'";
+            } else {
+              moveDescriptor = "x";
             }
             break;
           case 'ArrowDown':
-            axis = 'x'; angle = Math.PI / 2; 
             if (event.shiftKey) {
-              axis = 'z';
-              angle *= -1;
+              moveDescriptor = "z";
+            } else {
+              moveDescriptor = "x'";
             }
             break;
         }
-        this.flipAxis = new THREE.Vector3();
-        this.flipAxis[axis] = 1;
-        this.rotateCube(angle, () => {
-          this.state = STILL;
-          this.game.storage.saveGame();
-        });
       }
 
+      // Apply move
+      if (moveDescriptor !== '') {
+        const face = moveDescriptor.charAt( 0 );
+        const modifier = moveDescriptor.charAt( 1 );
+        if (['L', 'R', 'U', 'D', 'F', 'B'].includes(face)) {
+          this.moveSide(moveDescriptor);
+        }
+        if(['x', 'y', 'z'].includes(face)) {
+          this.state = ANIMATING;
+          let axis = face;
+          let angle = -Math.PI / 2 * ( ( modifier == "'" ) ? - 1 : 1 );
+          this.flipAxis = new THREE.Vector3();
+          this.flipAxis[axis] = 1;
+          this.rotateCube(angle, () => {
+            this.state = STILL;
+            this.game.storage.saveGame();
+          });
+        }
+      }
 
     });
   }
@@ -2181,7 +2201,7 @@ class Scrambler {
     const position = new THREE.Vector3();
     position[ { D: 'y', U: 'y', L: 'x', R: 'x', F: 'z', B: 'z' }[ face.toUpperCase() ] ] = row;
 
-    const angle = ( Math.PI / 2 ) * - row * ( ( modifier == "'" ) ? - 1 : 1 );
+    const angle = ( Math.PI / 2 ) * - Math.sign(row) * ( ( modifier == "'" ) ? - 1 : 1 );
 
     return { position, axis, angle, name: move };
 
@@ -3040,6 +3060,17 @@ class Preferences {
         onComplete: () => this.game.storage.savePreferences(),
       } ),
 
+      control_style: new Range( 'control_style', {
+        value: this.game.controls.controlStyle,
+        range: [ 0, 1 ],
+        step: 1,
+        onUpdate: value => {
+
+          this.game.controls.controlStyle = value;
+
+        },
+        onComplete: () => this.game.storage.savePreferences(),
+      } ),
     };
 
     this.ranges.scramble.list.forEach( ( item, i ) => {
@@ -3563,6 +3594,8 @@ class Storage {
       this.game.themes.colors = preferences.colors;
       this.game.themes.setTheme( preferences.theme );
 
+      this.game.controls.controlStyle = parseInt( preferences.controlStyle ) || 0;
+
       return true;
 
     } catch (e) {
@@ -3574,6 +3607,8 @@ class Storage {
       this.game.world.resize();
 
       this.game.themes.setTheme( 'cube' );
+
+      this.game.controls.controlStyle = 0;
 
       this.savePreferences();
 
@@ -3592,6 +3627,7 @@ class Storage {
       fov: this.game.world.fov,
       theme: this.game.themes.theme,
       colors: this.game.themes.colors,
+      controlStyle: this.game.controls.controlStyle,
     };
 
     localStorage.setItem( 'theCube_preferences', JSON.stringify( preferences ) );
