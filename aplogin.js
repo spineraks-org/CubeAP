@@ -82,7 +82,7 @@ function getSidePermutations(slotData) {
  * @returns {number}
  */
 function getNumberStickersToCompleteGoalOnSolve(slotData) {
-    const [major, minor, hotfix] = window.version.split('.').map(parseInt);
+    const [major, minor, hotfix] = window.version.split('.').map(x => parseInt(x));
     if (major === 0 && minor === 0 && hotfix <= 2) {
         return getTotalStickers(slotData);
     }

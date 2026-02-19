@@ -918,7 +918,7 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      if ((!this.game.isLayoutRandomized || this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
+      if ((!this.game.isLayoutRandomized || this.game.state === STATE.Playing || this.game.state === STATE.Complete || this.game.saved) && !edge.userData.locked) {
         const colorCode = sidePermutation[edge.userData.color];
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
@@ -1989,7 +1989,7 @@ class Controls {
 
   //AP
   checkIsSolved() {
-    if (this.game.state !== STATE.Playing) {
+    if (this.game.state !== STATE.Playing && this.game.state !== STATE.Complete){
       return;
     }
     const sides = { 'x-': [], 'x+': [], 'y-': [], 'y+': [], 'z-': [], 'z+': [] };
@@ -2084,13 +2084,13 @@ class Controls {
     window.highScore = Math.max(window.highScore, score);
     this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
     this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
-    if (isSolved && this.game.numberStickersToGoalOnSolve <= score && this.state === STATE.Playing) {
+    if (isSolved && this.game.numberStickersToGoalOnSolve <= score && this.game.state === STATE.Playing) {
       this.onSolved();
     }
 
     window.submitScore(window.highScore);
 
-    if (window.highScore === this.totalStickers) {
+    if (window.highScore === this.game.totalStickers) {
       this.game.storage.clearGame();
     }
   }
@@ -4324,11 +4324,6 @@ class Game {
     this.dom.buttons.stats.onclick = event => this.stats( SHOW );
 
     this.controls.onSolved = () => {
-      // Reveal the solved cube
-      window.game.cube.edges.forEach( edge => {
-        edge.userData.locked = false;
-      } );
-      window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
       this.complete( SHOW );
       window.sendGoal();
     };
@@ -4660,4 +4655,3 @@ function startGame(size, sidePermutation, numberStickersToGoalOnSolve, totalStic
 
 }
 window.startGame = startGame;
-
