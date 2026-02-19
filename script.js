@@ -4138,18 +4138,28 @@ class MoveStack {
   }
 }
 
-
-
-class Game {
-
-/**
+class GameOptions {
+  /**
  * @param {number} size Dimensions of the cube
  * @param {number} numberStickersToGoalOnSolve
  * @param {number} totalStickers
  * @param {Object.<string, string>|null} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ */
+  constructor(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers) {
+    this.size = size;
+    this.sidePermutation = sidePermutation;
+    this.numberStickersToGoalOnSolve = numberStickersToGoalOnSolve;
+    this.totalStickers = totalStickers;
+  }
+}
+
+class Game {
+
+/**
+ * @param {GameOptions} gameOptions Options for the game
  * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers, seed = null, apId = null) {
+  constructor(gameOptions, seed = null, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4193,7 +4203,7 @@ class Game {
     /**
      * @type {Object.<string, string>}
      */
-    this.sidePermutation = sidePermutation ?? {
+    this.sidePermutation = gameOptions.sidePermutation ?? {
       'U': 'U',
       'D': 'D',
       'L': 'L',
@@ -4201,9 +4211,9 @@ class Game {
       'F': 'F',
       'B': 'B'
     };
-    this.isLayoutRandomized = sidePermutation !== null;
-    this.numberStickersToGoalOnSolve = numberStickersToGoalOnSolve;
-    this.totalStickers = totalStickers
+    this.isLayoutRandomized = gameOptions.sidePermutation !== null;
+    this.numberStickersToGoalOnSolve = gameOptions.numberStickersToGoalOnSolve;
+    this.totalStickers = gameOptions.totalStickers;
 
     this.initActions();
 
@@ -4211,7 +4221,7 @@ class Game {
     this.newGame = false;
     this.saved = false;
 
-    this.storage.init(size);
+    this.storage.init(gameOptions.size);
     this.apId = apId;
     this.seed = seed;
     this.preferences.init();
@@ -4606,18 +4616,17 @@ function submitScore(counts){
 /**
  * Start a game
  *
- * @param {number} size Dimensions of the cube
- * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
- * @param {number} numberStickersToGoalOnSolve Number of stickers required to complete the goal when the cube is solved
+ * @param {GameOptions} gameOptions options
  * @param {number|undefined} seed Randomizer seed
  * @param {string|undefined} apId Identifier for the AP
  */
-function startGame(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers, seed, apId) {
+function startGame(gameOptions, seed, apId) {
+  console.log(gameOptions)
   console.log("Starting game!");
   window.highScore = 0;
   window.lastCorrectSent = 0;
   window.deathlinksInProgress = false;
-  window.game = new Game(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers, seed, apId);
+  window.game = new Game(gameOptions, seed, apId);
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {
