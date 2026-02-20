@@ -1350,6 +1350,8 @@ class Controls {
     this.state = STILL;
     this.enabled = false;
     this.deathlinkMoves = 0;
+    this.deathlinkMovesInProgress = false;
+    this.dragResolve = () => {};
 
     this.initDraggable();
 
@@ -1360,54 +1362,80 @@ class Controls {
   }
 
   //AP
+  queueAction(action){
+    this.moveInProgress = this.moveInProgress.then(() => {
+      return new Promise(action);
+    });
+  }
+
   undo_action(){
-    if (this.state !== STILL || !this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
-    const lastMove = this.game.moveStack.pop();
-    if (!lastMove) {
-      return;
-    }
-    this.state = ANIMATING;
-    const moveToApply = lastMove.inverse();
-    this.flipAxis = moveToApply.axis;
-    this.selectLayer(moveToApply.layer);
-    this.rotateLayer(moveToApply.angle, false, false, () => {
-      // Do NOT add the move to the move stack - we're undoing it!
-      this.game.storage.saveGame();
-      this.state = STILL;
-      this.checkIsSolved();
+    if (!this.enabled || this.scramble !== null || this.deathlinkMovesInProgress) return;
+    this.queueAction((resolve) => {
+      const lastMove = this.game.moveStack.pop();
+      if (!lastMove) {
+        resolve();
+        return;
+      }
+      this.state = ANIMATING;
+      const moveToApply = lastMove.inverse();
+      this.flipAxis = moveToApply.axis;
+      this.selectLayer(moveToApply.layer);
+      this.rotateLayer(moveToApply.angle, false, false, () => {
+        // Do NOT add the move to the move stack - we're undoing it!
+        this.game.storage.saveGame();
+        this.state = STILL;
+        this.checkIsSolved();
+        resolve();
+      });
     });
   }
 
   moveSide(moveDescriptor, isKeyboardEvent){
-    this.moveInProgress = this.moveInProgress.then(() => {
-      return new Promise((resolve) => {
-        this.state = ANIMATING;
-        const move = this.game.scrambler.convertMove(moveDescriptor);
+    this.queueAction((resolve) => {
+      this.state = ANIMATING;
+      const move = this.game.scrambler.convertMove(moveDescriptor);
 
-        // Get the layer to rotate
-        // Always get the layer corresponding to the global axis, not the local cube orientation
-        // Find the world position of the layer by transforming the intended position by the cube's rotation
-        // Use the inverse quaternion to transform the move position to global coordinates
-        const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
-        const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
+      // Get the layer to rotate
+      // Always get the layer corresponding to the global axis, not the local cube orientation
+      // Find the world position of the layer by transforming the intended position by the cube's rotation
+      // Use the inverse quaternion to transform the move position to global coordinates
+      const inverseQuaternion = this.game.cube.object.quaternion.clone().inverse();
+      const globalPosition = move.position.clone().applyQuaternion(inverseQuaternion);
 
-        const layer = this.getLayer(globalPosition);
+      const layer = this.getLayer(globalPosition);
 
-        // Set the axis to rotate
-        this.flipAxis = new THREE.Vector3();
+      // Set the axis to rotate
+      this.flipAxis = new THREE.Vector3();
 
-        this.flipAxis[move.axis] = 1;
-        this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
-        // Select the layer
-        this.selectLayer(layer);
-        // Rotate the layer
-        this.rotateLayer(move.angle, false, isKeyboardEvent, rotatedLayer => {
-          this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
-          this.game.storage.saveGame();
-          this.state = STILL;
-          this.checkIsSolved();
-          resolve();
-        });
+      this.flipAxis[move.axis] = 1;
+      this.flipAxis = this.flipAxis.applyQuaternion(inverseQuaternion);
+      // Select the layer
+      this.selectLayer(layer);
+      // Rotate the layer
+      this.rotateLayer(move.angle, false, isKeyboardEvent, rotatedLayer => {
+        this.game.moveStack.push(new Move(rotatedLayer.slice(), this.flipAxis.clone(), move.angle));
+        this.game.storage.saveGame();
+        this.state = STILL;
+        this.checkIsSolved();
+        resolve();
+      });
+    });
+  }
+
+  moveRotation(moveDescriptor){
+    this.queueAction((resolve) => {
+      const face = moveDescriptor.charAt( 0 );
+      const modifier = moveDescriptor.charAt( 1 );
+      
+      this.state = ANIMATING;
+      let axis = face;
+      let angle = -Math.PI / 2 * ( ( modifier == "'" ) ? - 1 : 1 );
+      this.flipAxis = new THREE.Vector3();
+      this.flipAxis[axis] = 1;
+      this.rotateCube(angle, () => {
+        this.state = STILL;
+        this.game.storage.saveGame();
+        resolve();
       });
     });
   }
@@ -1437,7 +1465,7 @@ class Controls {
     const hasDeathlinkInProgress = this.deathlinkMoves > 0;
     this.deathlinkMoves += amount_of_moves;
     const applyDeathlinkMove = async () => {
-      while(this.state !== STILL || !this.enabled || this.scramble !== null){
+      while(!this.enabled || this.scramble !== null){
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
@@ -1448,9 +1476,20 @@ class Controls {
     };
 
     if (!hasDeathlinkInProgress) {
+      this.deathlinkMovesInProgress = true;
+      // Need to re set deathlinkMovesInProgress in case another death link finished
+      this.queueAction((resolve) => {
+        this.deathlinkMovesInProgress = true;
+        resolve();
+      });
       while (this.deathlinkMoves > 0) {
         await applyDeathlinkMove();
       }
+      this.queueAction((resolve) => {
+        this.deathlinkMovesInProgress = false;
+        resolve();
+      });
+      await this.moveInProgress;
       this.game.moveStack.clear();
     }
   }
@@ -1464,13 +1503,14 @@ class Controls {
       let eventKey = event.key;
 
       // Use this to deathlink the layer when P is pressed
-      /*if (['P'].includes(eventKey.toUpperCase())) {
-       this.doDeathLink("Spineraks", "made too many games");
+      /*if (eventKey === '-') {
+        this.doDeathLink("Spineraks", "made too many games");
       }*/
-      if (!this.enabled || this.scramble !== null || this.deathlinkMoves > 0) return;
+      if (!this.enabled || this.scramble !== null || this.deathlinkMovesInProgress) return;
 
 
       if (event.key === 'Backspace') {
+        window.dispatchEvent(new MouseEvent("mouseup"));
         this.undo_action();
       }
 
@@ -1519,21 +1559,13 @@ class Controls {
 
       // Apply move
       if (moveDescriptor !== '') {
+        window.dispatchEvent(new MouseEvent("mouseup"));
         const face = moveDescriptor.charAt( 0 );
-        const modifier = moveDescriptor.charAt( 1 );
         if (['L', 'R', 'U', 'D', 'F', 'B'].includes(face)) {
           this.moveSide(moveDescriptor, true);
         }
         if(['x', 'y', 'z'].includes(face)) {
-          this.state = ANIMATING;
-          let axis = face;
-          let angle = -Math.PI / 2 * ( ( modifier == "'" ) ? - 1 : 1 );
-          this.flipAxis = new THREE.Vector3();
-          this.flipAxis[axis] = 1;
-          this.rotateCube(angle, () => {
-            this.state = STILL;
-            this.game.storage.saveGame();
-          });
+          this.moveRotation(moveDescriptor);
         }
       }
 
@@ -1561,7 +1593,7 @@ class Controls {
     this.draggable.onDragStart = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === PREPARING || this.state === ROTATING || this.deathlinkMoves > 0 ) return;
+      if ( this.state === PREPARING || this.state === ROTATING || this.deathlinkMovesInProgress ) return;
 
       this.gettingDrag = this.state === ANIMATING;
 
@@ -1611,7 +1643,7 @@ class Controls {
     this.draggable.onDragMove = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === STILL || ( this.state === ANIMATING && this.gettingDrag === false ) || this.deathlinkMoves > 0 ) return;
+      if ( this.state === STILL || ( this.state === ANIMATING && this.gettingDrag === false ) || this.deathlinkMovesInProgress ) return;
 
       const planeIntersect = this.getIntersect( position.current, this.helper, false );
       if ( planeIntersect === false ) return;
@@ -1624,6 +1656,10 @@ class Controls {
       this.addMomentumPoint( this.dragDelta );
 
       if ( this.state === PREPARING && this.dragTotal.length() > 0.05 ) {
+        
+        this.queueAction((resolve) => {
+          this.dragResolve = resolve;
+        });
 
         this.dragDirection = this.getMainAxis( this.dragTotal );
 
@@ -1676,11 +1712,12 @@ class Controls {
 
     this.draggable.onDragEnd = position => {
 
-      if ( this.scramble !== null || this.deathlinkMoves > 0 ) return;
+      if ( this.scramble !== null || this.deathlinkMovesInProgress ) return;
       if ( this.state !== ROTATING ) {
 
         this.gettingDrag = false;
         this.state = STILL;
+        this.dragResolve();
         return;
 
       }
@@ -1711,6 +1748,7 @@ class Controls {
           this.gettingDrag = false;
 
           this.checkIsSolved();
+          this.dragResolve();
 
         } );
 
@@ -1721,6 +1759,7 @@ class Controls {
           this.state = this.gettingDrag ? PREPARING : STILL;
           this.gettingDrag = false;
           this.game.storage.saveGame();
+          this.dragResolve();
         } );
 
       }
