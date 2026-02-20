@@ -1350,7 +1350,7 @@ class Controls {
     this.state = STILL;
     this.enabled = false;
     this.deathlinkMoves = 0;
-    this.deathlinkMovesInProgress = false;
+    this.deathlinksInProgress = 0;
     this.dragResolve = () => {};
 
     this.initDraggable();
@@ -1369,7 +1369,7 @@ class Controls {
   }
 
   undo_action(){
-    if (!this.enabled || this.scramble !== null || this.deathlinkMovesInProgress) return;
+    if (!this.enabled || this.scramble !== null || this.deathlinksInProgress > 0) return;
     this.queueAction((resolve) => {
       const lastMove = this.game.moveStack.pop();
       if (!lastMove) {
@@ -1476,17 +1476,12 @@ class Controls {
     };
 
     if (!hasDeathlinkInProgress) {
-      this.deathlinkMovesInProgress = true;
-      // Need to re set deathlinkMovesInProgress in case another death link finished
-      this.queueAction((resolve) => {
-        this.deathlinkMovesInProgress = true;
-        resolve();
-      });
+      this.deathlinksInProgress++;
       while (this.deathlinkMoves > 0) {
         await applyDeathlinkMove();
       }
       this.queueAction((resolve) => {
-        this.deathlinkMovesInProgress = false;
+        this.deathlinksInProgress--;
         this.game.moveStack.clear();
         resolve();
       });
@@ -1505,7 +1500,7 @@ class Controls {
       /*if (eventKey === '-') {
         this.doDeathLink("Spineraks", "made too many games");
       }*/
-      if (!this.enabled || this.scramble !== null || this.deathlinkMovesInProgress) return;
+      if (!this.enabled || this.scramble !== null || this.deathlinksInProgress > 0) return;
 
 
       if (event.key === 'Backspace') {
@@ -1592,7 +1587,7 @@ class Controls {
     this.draggable.onDragStart = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === PREPARING || this.state === ROTATING || this.deathlinkMovesInProgress ) return;
+      if ( this.state === PREPARING || this.state === ROTATING || this.deathlinksInProgress > 0 ) return;
 
       this.gettingDrag = this.state === ANIMATING;
 
@@ -1642,7 +1637,7 @@ class Controls {
     this.draggable.onDragMove = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === STILL || ( this.state === ANIMATING && this.gettingDrag === false ) || this.deathlinkMovesInProgress ) return;
+      if ( this.state === STILL || ( this.state === ANIMATING && this.gettingDrag === false ) || this.deathlinksInProgress > 0 ) return;
 
       const planeIntersect = this.getIntersect( position.current, this.helper, false );
       if ( planeIntersect === false ) return;
@@ -1711,7 +1706,7 @@ class Controls {
 
     this.draggable.onDragEnd = position => {
 
-      if ( this.scramble !== null || this.deathlinkMovesInProgress ) return;
+      if ( this.scramble !== null || this.deathlinksInProgress > 0 ) return;
       if ( this.state !== ROTATING ) {
 
         this.gettingDrag = false;
