@@ -918,7 +918,7 @@ class Cube {
     });
     
     this.edges.forEach( edge => {
-      if ((!this.game.isLayoutRandomized || this.game.state === STATE.Playing || this.game.saved) && !edge.userData.locked) {
+      if ((!this.game.isLayoutRandomized || this.game.state === STATE.Playing || this.game.state === STATE.Complete || this.game.saved) && !edge.userData.locked) {
         const colorCode = sidePermutation[edge.userData.color];
         edge.material.color.setHex(colors[colorCode]);
         edge.material.transparent = true;
@@ -2009,7 +2009,7 @@ class Controls {
 
   //AP
   checkIsSolved() {
-    if (this.game.state !== STATE.Playing) {
+    if (this.game.state !== STATE.Playing && this.game.state !== STATE.Complete){
       return;
     }
     const sides = { 'x-': [], 'x+': [], 'y-': [], 'y+': [], 'z-': [], 'z+': [] };
@@ -2104,12 +2104,15 @@ class Controls {
     window.highScore = Math.max(window.highScore, score);
     this.game.dom.texts.correctness.innerHTML = `${score}/${maxPossible} correct`;
     this.game.dom.texts.correctness2.innerHTML = `High score: ${window.highScore}`;
-    if (isSolved && this.game.numberStickersToGoalOnSolve <= score) {
+    if (isSolved && this.game.numberStickersToGoalOnSolve <= score && this.game.state === STATE.Playing) {
       this.onSolved();
-      return;
     }
 
     window.submitScore(window.highScore);
+
+    if (window.highScore === this.game.totalStickers) {
+      this.game.storage.clearGame();
+    }
   }
 
 }
@@ -3512,7 +3515,8 @@ class Storage {
       apworld_version: window.version,
       cube_rotation: this.game.controls.edges.rotation.toVector3(),
       save_version: 1,
-      high_score: window.highScore
+      high_score: window.highScore,
+      saved_at: Date.now()
     }
     localStorage.setItem(this.game.apId, JSON.stringify(save));
   }
@@ -4170,16 +4174,28 @@ class MoveStack {
   }
 }
 
-
+class GameOptions {
+  /**
+ * @param {number} size Dimensions of the cube
+ * @param {number} numberStickersToGoalOnSolve
+ * @param {number} totalStickers
+ * @param {Object.<string, string>|null} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ */
+  constructor(size, sidePermutation, numberStickersToGoalOnSolve, totalStickers) {
+    this.size = size;
+    this.sidePermutation = sidePermutation;
+    this.numberStickersToGoalOnSolve = numberStickersToGoalOnSolve;
+    this.totalStickers = totalStickers;
+  }
+}
 
 class Game {
 
 /**
- * @param {number} size Dimensions of the cube
- * @param {Object.<string, string>|null} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
+ * @param {GameOptions} gameOptions Options for the game
  * @param {string|null} apId ID for the AP session
  */
-  constructor(size, sidePermutation, numberStickersToGoalOnSolve, seed = null, apId = null) {
+  constructor(gameOptions, seed = null, apId = null) {
 
     this.dom = {
       ui: document.querySelector( '.ui' ),
@@ -4223,7 +4239,7 @@ class Game {
     /**
      * @type {Object.<string, string>}
      */
-    this.sidePermutation = sidePermutation ?? {
+    this.sidePermutation = gameOptions.sidePermutation ?? {
       'U': 'U',
       'D': 'D',
       'L': 'L',
@@ -4231,8 +4247,9 @@ class Game {
       'F': 'F',
       'B': 'B'
     };
-    this.isLayoutRandomized = sidePermutation !== null;
-    this.numberStickersToGoalOnSolve = numberStickersToGoalOnSolve;
+    this.isLayoutRandomized = gameOptions.sidePermutation !== null;
+    this.numberStickersToGoalOnSolve = gameOptions.numberStickersToGoalOnSolve;
+    this.totalStickers = gameOptions.totalStickers;
 
     this.initActions();
 
@@ -4240,7 +4257,7 @@ class Game {
     this.newGame = false;
     this.saved = false;
 
-    this.storage.init(size);
+    this.storage.init(gameOptions.size);
     this.apId = apId;
     this.seed = seed;
     this.preferences.init();
@@ -4353,12 +4370,6 @@ class Game {
     this.dom.buttons.stats.onclick = event => this.stats( SHOW );
 
     this.controls.onSolved = () => {
-      // Reveal the solved cube
-      window.game.cube.edges.forEach( edge => {
-        edge.userData.locked = false;
-      } );
-      window.game.cube.updateColors(window.game.themes.getColors(), window.game.sidePermutation);
-      this.storage.clearGame();
       this.complete( SHOW );
       window.sendGoal();
     };
@@ -4633,7 +4644,7 @@ function unlockSticker(sticker){
 }
 
 function submitScore(counts){
-  if (this.game.state === STATE.Playing) {
+  if (this.game.state === STATE.Playing || this.game.state === STATE.Complete) {
     window.findAndDetermineChecks(counts);
   }
 }
@@ -4641,18 +4652,17 @@ function submitScore(counts){
 /**
  * Start a game
  *
- * @param {number} size Dimensions of the cube
- * @param {Object.<string, string>} sidePermutation Object that maps each side of the cube to a different side to permute the colors.
- * @param {number} numberStickersToGoalOnSolve Number of stickers required to complete the goal when the cube is solved
+ * @param {GameOptions} gameOptions options
  * @param {number|undefined} seed Randomizer seed
  * @param {string|undefined} apId Identifier for the AP
  */
-function startGame(size, sidePermutation, numberStickersToGoalOnSolve, seed, apId) {
+function startGame(gameOptions, seed, apId) {
+  console.log(gameOptions)
   console.log("Starting game!");
   window.highScore = 0;
   window.lastCorrectSent = 0;
   window.deathlinksInProgress = false;
-  window.game = new Game(size, sidePermutation, numberStickersToGoalOnSolve, seed, apId);
+  window.game = new Game(gameOptions, seed, apId);
 
   // Disable the standard right-click context menu on the whole document
   document.addEventListener('contextmenu', function(event) {
@@ -4690,4 +4700,3 @@ function startGame(size, sidePermutation, numberStickersToGoalOnSolve, seed, apI
 
 }
 window.startGame = startGame;
-

@@ -25,7 +25,7 @@ if(getUrlParameter('go') == 'solo'){
 
 function startSolo(size = 2){
     console.log("Starting solo game", size);
-    const sidePermutations = null;
+    let sidePermutations = null;
 
     const layoutCheckbox = document.getElementsByName('randomize_layout').item(0);
     if (layoutCheckbox.checked) {
@@ -50,12 +50,14 @@ function startSolo(size = 2){
     document.getElementById("ui").style.display = "block";
 
     var size = parseInt(size) || parseInt(getUrlParameter('size')) || 2;
+    const totalSize = size*size*6;
     var stickersUnlocked = 0;
     var lockedStickers = [];
 
+
     function connectToServer(firsttime = true) {
-        
-        window.startGame(size, sidePermutations, size*size*6);
+        const gameOptions = new GameOptions(size, sidePermutations, totalSize, totalSize);
+        window.startGame(gameOptions);
 
         const colors = ['L', 'R', 'U', 'D', 'F', 'B'];
         for(let i=1; i<=size*size; i++){

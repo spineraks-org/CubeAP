@@ -29,30 +29,33 @@ if(getUrlParameter('go') == 'LS'){
     startAP();
 }
 
-/**
- * Extract the cube size from the slot data
- *
- * @param {Object} slotData
- * @returns {number}
- */
-function getCubeSize(slotData) {
-    return slotData.size_of_cube;
+function getGameOptionsFromVersion(version, slotData) {
+    const totalStickers = 6*slotData.size_of_cube*slotData.size_of_cube;
+    if (version === "0.0.1") {
+        return new GameOptions(slotData.size_of_cube, null, totalStickers, totalStickers);
+    }
+
+    const sidePermutations = convertColorPermutationToSidePermutation(slotData.color_permutation, version);
+
+    if (version === "0.0.2") {
+        return new GameOptions(slotData.size_of_cube, sidePermutations, totalStickers, totalStickers);
+    }
+    else if (version === "0.0.3") {
+        return new GameOptions(slotData.size_of_cube, sidePermutations, slotData.minimum_stickers_unlocked_to_goal_when_solved, totalStickers);
+    }
+
+    throw new Error(`Cannot generate the options for AP version ${version}`);
 }
 
 /**
- * Extract the side permutations from the slot data.
+ * Converts the AP world color permutation into the frontend side permutation
  *
- * Returns null if the layout isn't randomized
- *
- * @param {Object} slotData
+ * @param {Object} colorPermutation
+ * @param {string} version AP world version.
  * @returns {Object.<string, string>|null}
  */
-function getSidePermutations(slotData) {
-    if (window.version === '0.0.1') {
-        return null;
-    }
-
-    if (slotData.color_permutation === null) {
+function convertColorPermutationToSidePermutation(colorPermutation, version) {
+    if (colorPermutation === null) {
         return null;
     }
 
@@ -61,32 +64,18 @@ function getSidePermutations(slotData) {
     // If the randomized layout is exactly the default one, it will be considered non-randomized
     // Considering this is temporary and only 1/720, it's probably fine.
     let isLayoutRandomized = false;
-    for (const key in slotData.color_permutation) {
-        if (key !== slotData.color_permutation[key]) {
+    for (const key in colorPermutation) {
+        if (key !== colorPermutation[key]) {
             isLayoutRandomized = true;
         }
-        sidePermutations[colorToSide[key]] = colorToSide[slotData.color_permutation[key]]
+        sidePermutations[colorToSide[key]] = colorToSide[colorPermutation[key]]
     }
 
-    if (window.version === '0.0.2') {
+    if (version === "0.0.2") {
         return isLayoutRandomized ? sidePermutations : null;
     }
 
     return sidePermutations;
-}
-
-/**
- * Extract the minimum number of stickers to goal when the cube is solved from the slot data.
- *
- * @param {Object} slotData
- * @returns {number}
- */
-function getNumberStickersToCompleteGoalOnSolve(slotData) {
-    const [major, minor, hotfix] = window.version.split('.').map(parseInt);
-    if (major === 0 && minor === 0 && hotfix <= 2) {
-        return 6*slotData.size_of_cube*slotData.size_of_cube;
-    }
-    return slotData.min_stickers_to_goal_on_solve;
 }
 
 function getSeed(slotData) {
@@ -197,11 +186,9 @@ function startAP(){
         document.getElementById("ui").style.display = "block";
         window.version = packet.slot_data.ap_world_version ?? '0.0.1';
         document.getElementById('version').innerHTML = 'v' + window.version;
-        const size_of_cube = getCubeSize(packet.slot_data);
-        const sidePermutations = getSidePermutations(packet.slot_data);
+        const options = getGameOptionsFromVersion(window.version, packet.slot_data);
         const seed = getSeed(packet.slot_data);
-        const numberStickersToGoalOnSolve = getNumberStickersToCompleteGoalOnSolve(packet.slot_data)
-        window.startGame(size_of_cube, sidePermutations, numberStickersToGoalOnSolve, seed, `$Cube_${seed}_${networkSlot.name}$`);
+        window.startGame(options, seed, `$Cube_${seed}_${networkSlot.name}$`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {
