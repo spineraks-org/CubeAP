@@ -1487,10 +1487,9 @@ class Controls {
       }
       this.queueAction((resolve) => {
         this.deathlinkMovesInProgress = false;
+        this.game.moveStack.clear();
         resolve();
       });
-      await this.moveInProgress;
-      this.game.moveStack.clear();
     }
   }
   
