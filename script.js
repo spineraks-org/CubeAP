@@ -1891,7 +1891,7 @@ class Controls {
     this.flipAxis[ move.axis ] = 1;
 
     this.selectLayer( layer );
-    this.rotateLayer( move.angle, true, () => {
+    this.rotateLayer( move.angle, true, false, () => {
 
       converted.shift();
 
