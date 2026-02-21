@@ -25,19 +25,13 @@ if(getUrlParameter('go') == 'solo'){
 
 function startSolo(size = 2){
     console.log("Starting solo game", size);
-    const sidePermutations = {
-        'U': 'U',
-        'D': 'D',
-        'L': 'L',
-        'R': 'R',
-        'F': 'F',
-        'B': 'B'
-    };
+    let sidePermutations = null;
 
     const layoutCheckbox = document.getElementsByName('randomize_layout').item(0);
     if (layoutCheckbox.checked) {
-        const sideValues = Object.values(sidePermutations);
-        for (let key in sidePermutations) {
+        const sideValues = ['U', 'D', 'L', 'R', 'F', 'B'];
+        sidePermutations = {};
+        for (let key of sideValues.slice()) {
             sidePermutations[key] = sideValues.splice(Math.floor(Math.random() * sideValues.length), 1)[0];
         }
     }
@@ -55,13 +49,15 @@ function startSolo(size = 2){
     document.getElementById("login-container").style.display = "none";
     document.getElementById("ui").style.display = "block";
 
-    var size = size || parseInt(getUrlParameter('size')) || 2;
+    var size = parseInt(size) || parseInt(getUrlParameter('size')) || 2;
+    const totalSize = size*size*6;
     var stickersUnlocked = 0;
     var lockedStickers = [];
 
+
     function connectToServer(firsttime = true) {
-        
-        window.startGame(parseInt(size), sidePermutations);
+        const gameOptions = new GameOptions(size, sidePermutations, totalSize, totalSize);
+        window.startGame(gameOptions);
 
         const colors = ['L', 'R', 'U', 'D', 'F', 'B'];
         for(let i=1; i<=size*size; i++){
@@ -87,7 +83,7 @@ function startSolo(size = 2){
 
     window.connectToServer = connectToServer;
 
-    console.log("0.0.2 solo", size)
+    console.log("0.0.3 solo", size)
     window.is_connected = false;
 
 

@@ -29,45 +29,62 @@ if(getUrlParameter('go') == 'LS'){
     startAP();
 }
 
-/**
- * Extract the cube size from the slot data
- *
- * @param {Object} slotData
- * @returns {number}
- */
-function getCubeSize(slotData) {
-    return slotData.size_of_cube;
+function getGameOptionsFromVersion(version, slotData) {
+    const totalStickers = 6*slotData.size_of_cube*slotData.size_of_cube;
+    if (version === "0.0.1") {
+        return new GameOptions(slotData.size_of_cube, null, totalStickers, totalStickers);
+    }
+
+    const sidePermutations = convertColorPermutationToSidePermutation(slotData.color_permutation, version);
+
+    if (version === "0.0.2") {
+        return new GameOptions(slotData.size_of_cube, sidePermutations, totalStickers, totalStickers);
+    }
+    else if (version === "1.0.0") {
+        return new GameOptions(slotData.size_of_cube, sidePermutations, slotData.minimum_stickers_unlocked_to_goal_when_solved, totalStickers);
+    }
+
+    throw new Error(`Cannot generate the options for AP version ${version}`);
 }
 
 /**
- * Extract the side permutations from the slot data
+ * Converts the AP world color permutation into the frontend side permutation
  *
- * @param {Object} slotData
- * @returns {Object.<string, string>}
+ * @param {Object} colorPermutation
+ * @param {string} version AP world version.
+ * @returns {Object.<string, string>|null}
  */
-function getSidePermutations(slotData) {
-    // If there's no version, it's 0.0.1. Permutation didn't exist
-    if (!('ap_world_version' in slotData)) {
-        return {
-            'U': 'U',
-            'D': 'D',
-            'L': 'L',
-            'R': 'R',
-            'F': 'F',
-            'B': 'B'
-        }
+function convertColorPermutationToSidePermutation(colorPermutation, version) {
+    if (colorPermutation === null) {
+        return null;
     }
 
     let sidePermutations = {};
-    for (const key in slotData.color_permutation) {
-        sidePermutations[colorToSide[key]] = colorToSide[slotData.color_permutation[key]]
+    // This is bugged for version 0.0.2
+    // If the randomized layout is exactly the default one, it will be considered non-randomized
+    // Considering this is temporary and only 1/720, it's probably fine.
+    let isLayoutRandomized = false;
+    for (const key in colorPermutation) {
+        if (key !== colorPermutation[key]) {
+            isLayoutRandomized = true;
+        }
+        sidePermutations[colorToSide[key]] = colorToSide[colorPermutation[key]]
     }
+
+    if (version === "0.0.2") {
+        return isLayoutRandomized ? sidePermutations : null;
+    }
+
     return sidePermutations;
+}
+
+function getSeed(slotData) {
+    return slotData.seed_name;
 }
 
 function startAP(){
     document.getElementById("login-container").style.display = "none";
-    document.getElementById("ui").style.display = "block";
+    document.getElementById("loading-screen").style.display = "flex";
 
     localStorage.setItem("hostport", document.getElementById("hostport").value);
     localStorage.setItem("name", document.getElementById("name").value);
@@ -97,7 +114,25 @@ function startAP(){
                 console.log("Connected to the server");
             })
             .catch((error) => {
-                console.log("Failed to connect", error)
+                let errorMessages = ['Error while connecting to the server:\n'];
+                if (typeof error.errors === 'undefined') {
+                    errorMessages.push('Make sure that the server and the port are correct.')
+                }
+                else {
+                    for (const errorCode of error.errors) {
+                        switch (errorCode) {
+                            case 'InvalidSlot':
+                                errorMessages.push('This slot does not exist. Make sure that the player name is correct.')
+                                break
+                            case 'InvalidPassword':
+                                errorMessages.push('The password is not correct.')
+                                break;
+                        }
+                    }
+                }
+                alert(errorMessages.join('\n'));
+                document.getElementById("login-container").style.display = "flex";
+                document.getElementById("loading-screen").style.display = "none";
             });
 
     }
@@ -129,21 +164,31 @@ function startAP(){
         for (let i = 0; i < items.length; i++) {
             let item = items[i][0];
             const color = item.split(' ', 2)[0];
-
-            const side = colorToSide[color];
-
-            window.unlockSticker([side, item.split("#")[1]]);
+            const expectedSide = colorToSide[color];
+            const realSide = Object.keys(window.game.sidePermutation)
+                .find(key => window.game.sidePermutation[key] === expectedSide);
+            
+            if (realSide === undefined) {
+                console.log('Cannot associate AP color to a side', color);
+                continue;
+            }
+            window.unlockSticker([realSide, parseInt(item.split("#")[1])]);
         }
     }
 
     const connectedListener = (packet) => {
+        const networkSlot = packet.slot_info[packet.slot]
+
         window.is_connected = true;
         apstatus = "AP: Connected";
         console.log("Connected packet: ", packet);
-
-        const size_of_cube = getCubeSize(packet.slot_data);
-        const sidePermutations = getSidePermutations(packet.slot_data);
-        window.startGame(size_of_cube, sidePermutations);
+        document.getElementById("loading-screen").style.display = "none";
+        document.getElementById("ui").style.display = "block";
+        window.version = packet.slot_data.ap_world_version ?? '0.0.1';
+        document.getElementById('version').innerHTML = 'v' + window.version;
+        const options = getGameOptionsFromVersion(window.version, packet.slot_data);
+        const seed = getSeed(packet.slot_data);
+        window.startGame(options, seed, `$Cube_${seed}_${networkSlot.name}$`);
 
         // Add the event listener and keep a reference to the handler
         window.beforeUnloadHandler = function (e) {
@@ -167,14 +212,11 @@ function startAP(){
         window.doDeathLink(source, cause);
     }
 
-    var highScore = 0
     function findAndDetermineChecks(total){
-        console.log(highScore, total);
-        if(total <= highScore) return;
-        for (let i = highScore + 1; i <= total; i++) {
+        for (let i = window.lastCorrectSent + 1; i <= total; i++) {
             sendCheck(267780000 + i);
+            window.lastCorrectSent = i;
         }
-        highScore = Math.max(highScore, total);
     }
     window.findAndDetermineChecks = findAndDetermineChecks;
 
@@ -192,6 +234,6 @@ function startAP(){
     window.sendCheck = sendCheck;
     window.sendGoal = sendGoal;
 
-    console.log("0.0.2")
+    console.log("1.0.0")
     connectToServer();
 }
