@@ -40,7 +40,7 @@ function getGameOptionsFromVersion(version, slotData) {
     if (version === "0.0.2") {
         return new GameOptions(slotData.size_of_cube, sidePermutations, totalStickers, totalStickers);
     }
-    else if (version === "0.0.3") {
+    else if (version === "1.0.0") {
         return new GameOptions(slotData.size_of_cube, sidePermutations, slotData.minimum_stickers_unlocked_to_goal_when_solved, totalStickers);
     }
 
@@ -234,6 +234,6 @@ function startAP(){
     window.sendCheck = sendCheck;
     window.sendGoal = sendGoal;
 
-    console.log("0.0.3")
+    console.log("1.0.0")
     connectToServer();
 }
