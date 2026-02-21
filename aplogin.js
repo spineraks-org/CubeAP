@@ -32,12 +32,20 @@ if(getUrlParameter('go') == 'LS'){
 function getGameOptionsFromVersion(version, slotData) {
     const totalStickers = 6*slotData.size_of_cube*slotData.size_of_cube;
     if (version === "0.0.1") {
+        if(!localStorage.getItem("referredTo100")){
+            alert("There is a new version with many new features! But this version (probably) still works!")
+            localStorage.setItem("referredTo100", true);
+        }
         return new GameOptions(slotData.size_of_cube, null, totalStickers, totalStickers);
     }
 
     const sidePermutations = convertColorPermutationToSidePermutation(slotData.color_permutation, version);
 
     if (version === "0.0.2") {
+        if(!localStorage.getItem("referredTo100")){
+            alert("There is a new version with many new features! But this version (probably) still works!")
+            localStorage.setItem("referredTo100", true);
+        }
         return new GameOptions(slotData.size_of_cube, sidePermutations, totalStickers, totalStickers);
     }
     else if (version === "1.0.0") {
