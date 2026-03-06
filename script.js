@@ -1369,7 +1369,7 @@ class Controls {
   }
 
   undo_action(){
-    if (!this.enabled || this.scramble !== null || this.deathlinksInProgress > 0) return;
+    if (!this.enabled || this.scramble !== null || this.deathlinksInProgress > 0 || this.state == ANIMATING) return;
     this.queueAction((resolve) => {
       const lastMove = this.game.moveStack.pop();
       if (!lastMove) {
