@@ -81,31 +81,30 @@ export default class Controls {
   }
 
   undo_action(){
-    if (!this.enabled || this.scramble !== null || this.deathlinksInProgress > 0 || this.state == ANIMATING) return;
+    if (!this.enabled || this.scramble !== null || this.deathlinksInProgress > 0 || this.state == AnimationState.ANIMATING) return;
     this.queueAction((resolve) => {
       const lastMove = this.game.moveStack.pop();
       if (!lastMove) {
         resolve();
         return;
       }
+      const moveToApply = lastMove.inverse();
       this.state = AnimationState.ANIMATING;
-      if(lastMove instanceof RotateMove){
-        const moveToApply = lastMove.inverse();
-        this.flipAxis = moveToApply.axis;
+      if(moveToApply instanceof RotateMove){
+        this.flipLayer = moveToApply.
         this.rotateCube(moveToApply.angle, () => {
-          this.state = STILL;
+          this.state = AnimationState.STILL;
           this.game.storage.saveGame();
           resolve();
         });
       }
-      if(lastMove instanceof Move){
-        const moveToApply = lastMove.inverse();
+      if(moveToApply instanceof Move){
         this.flipAxis = moveToApply.axis;
         this.selectLayer(moveToApply.layer);
         this.rotateLayer(moveToApply.angle, false, false, () => {
           // Do NOT add the move to the move stack - we're undoing it!
           this.game.storage.saveGame();
-          this.state = STILL;
+          this.state = AnimationState.STILL;
           this.checkIsSolved();
           resolve();
         });
@@ -128,7 +127,7 @@ export default class Controls {
       const layer = this.getLayer(globalPosition);
 
       if( this.flipLayer != null) {
-        this.state = STILL;
+        this.state = AnimationState.STILL;
         console.log("Already flipping, cannot rotate the cube", this.flipLayer);
         resolve();
         return;
@@ -164,7 +163,7 @@ export default class Controls {
       let angle = -Math.PI / 2 * ( ( modifier == "'" ) ? - 1 : 1 );
 
       if( this.flipLayer != null) {
-        this.state = STILL;
+        this.state = AnimationState.STILL;
         console.log("Already flipping, cannot rotate the cube", this.flipLayer, "tried to rotate around", axis);
         resolve();
         return;
@@ -328,7 +327,7 @@ export default class Controls {
     this.draggable.onDragStart = position => {
 
       if ( this.scramble !== null ) return;
-      if ( this.state === AnimationState.PREPARING || this.state === AnimationState.ROTATING || this.deathlinksInProgress > 0  || this.state === ANIMATING) return;
+      if ( this.state === AnimationState.PREPARING || this.state === AnimationState.ROTATING || this.deathlinksInProgress > 0  || this.state === AnimationState.ANIMATING) return;
 
       this.gettingDrag = this.state === AnimationState.ANIMATING;
 
