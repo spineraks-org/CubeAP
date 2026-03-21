@@ -1,3 +1,5 @@
+import GameOptions from "./src/game/GameOptions.js";
+import {Client} from "./lib/archipelago.js";
 
 function getUrlParameter(name) {
     name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
@@ -17,9 +19,6 @@ const colorToSide = {
 };
 
 // server stuff:
-import {
-    Client
-} from "./archipelago.js";
 
 document.getElementById('loginbutton').addEventListener('click', function() {
     startAP();
