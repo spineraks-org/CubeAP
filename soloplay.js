@@ -1,4 +1,6 @@
 
+import GameOptions from "./src/game/GameOptions.js";
+
 function getUrlParameter(name) {
     name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
     var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
