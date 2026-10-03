@@ -1099,6 +1099,8 @@ class Tween extends Animation {
 
     this.progress += ( delta / this.duration ) * direction;
 
+    if ( this.progress > 1 ) this.progress = 1.00001;
+
     this.value = this.easing( this.progress );
     this.delta = this.value - old;
 
